@@ -9,8 +9,8 @@ Software architecture description
 
 1. Build Environment Requirements
 
-- Kernel version: >=6.6
-- Openssl version: 1.1.1 or 3.X
+- OpenEuler Kernel version: >=6.6
+- Openssl version: 1.1.1，3.0.9, 3.0.12
 - You also need to install the following dependency packages:
 
 ```shell
