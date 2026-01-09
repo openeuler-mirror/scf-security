@@ -1,22 +1,42 @@
 # scf-security
 
 #### Description
-A lib that provides TLS security specification-compliant, and shields the differences between HiTLS, openSSL and other TSL protocols.
 
 #### Software Architecture
 Software architecture description
 
-#### Installation
+#### Build and install
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1. Build Environment Requirements
 
-#### Instructions
+- Kernel version: >=6.6
+- Openssl version: 1.1.1 or 3.X
+- You also need to install the following dependency packages:
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+```shell
+sudo yum install -y rpm-build
+sudo yum install -y make
+sudo yum install -y cmake
+sudo yum install -y gcc
+sudo yum install -y gcc-c++
+sudo yum install -y libboundscheck
+```
+
+2. Build Instructions
+
+- You can compile using preset scripts directly
+
+```shell
+sudo sh build_rpm.sh 
+```
+
+3. Install Instructions
+
+- Install using an RPM package generated from compilation
+
+```shell
+sudo rpm -ivh --nodeps /root/rpmbuild/RPMS/*/scf-security-*.rpm 
+```
 
 #### Contribution
 

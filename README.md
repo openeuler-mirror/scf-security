@@ -1,23 +1,42 @@
 # scf-security
 
 #### 介绍
-A lib that provides TLS security specification-compliant, and shields the differences between HiTLS, openSSL and other TSL protocols.
 
 #### 软件架构
 软件架构说明
 
+#### 编译安装
 
-#### 安装教程
+1. 编译环境要求
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+- 编译环境 kernel>=6.6
+- TLS组件 Openssl 1.1.1 或者  3.X
+- 同时你需要安装以下依赖
 
-#### 使用说明
+```shell
+sudo yum install -y rpm-build
+sudo yum install -y make
+sudo yum install -y cmake
+sudo yum install -y gcc
+sudo yum install -y gcc-c++
+sudo yum install -y libboundscheck
+```
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+2. 编译指导
+
+- 直接通过预置脚本进行编译
+
+```shell
+sudo sh build_rpm.sh 
+```
+
+3. 安装指导
+
+- 使用编译生成的rpm包进行安装
+
+```shell
+sudo rpm -ivh --nodeps /root/rpmbuild/RPMS/*/scf-security-*.rpm 
+```
 
 #### 参与贡献
 
