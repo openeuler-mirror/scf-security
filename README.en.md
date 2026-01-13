@@ -1,9 +1,10 @@
 # scf-security
 
 #### Description
+The full name of SCF is Secure Communication Framework. It provides an SDK library for secure communication, offering configuration templates for TLS protocols and algorithm suites, certificate validity verification, hardware acceleration, and transmission I/O, thereby enhancing the security of TLS secure communication applications for developers' reference.
 
 #### Software Architecture
-Software architecture description
+![](./docs/images/scf_introduction.png)
 
 #### Build and install
 
