@@ -28,7 +28,7 @@ sudo yum install -y libboundscheck
 - You can compile using preset scripts directly
 
 ```shell
-sudo sh build_rpm.sh 
+sudo sh build.sh rpm 
 ```
 
 3. Install Instructions
@@ -38,6 +38,15 @@ sudo sh build_rpm.sh
 ```shell
 sudo rpm -ivh --nodeps /root/rpmbuild/RPMS/*/scf-security-*.rpm 
 ```
+
+#### 相关文档
+
+- [api documentation](docs/cn/api_documentation.md)
+- [sample](sample/sample.md)
+
+#### 许可证信息
+
+Secure Communication Framework is licensed under Mulan PSL v2，see [LICENSE](LICENSE) for details。
 
 #### Contribution
 

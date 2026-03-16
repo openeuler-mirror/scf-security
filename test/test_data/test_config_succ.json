@@ -1,0 +1,28 @@
+{
+  "tlsVersion": {
+    "minVersion": "SSL_VERSION_TLS12",
+    "maxVersion": "SSL_VERSION_TLS13",
+    "forbidVersion": []
+  },
+  "tlsCiphersuites": ["SCF_SSL_AES_256_GCM_SHA384"],
+  "certs": [
+    {
+      "cert": {
+        "certType" : "CA",
+        "storeBuf": "../../test/test_data/certificate/test_cert/ca.pem"
+      }
+    }, {
+      "cert": {
+        "certType" : "EE",
+        "storeBuf": "../../test/test_data/certificate/test_cert/client.pem"
+      }
+    }
+  ],
+  "privKey": {
+    "storeBuf": "../../test/test_data/certificate/test_cert/client.key",
+    "keyAuth": {
+      "isCipher" : true,
+      "storeBuf" : "AAAAAgAAAAAAAAAAAAAAAQAAAAn/YLqf85tsq9yuhAKKRDKi+Pttn/HBZIpey8pvAAAAAAEAAAEAAAAAAAAAIe4ivjxhiXPx+kz29H/IGRnnL54GVzKDd7MvlHEk26v44A=="
+    }
+  }
+}

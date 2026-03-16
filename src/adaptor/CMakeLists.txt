@@ -1,0 +1,8 @@
+add_subdirectory(openssl)
+add_subdirectory(base)
+
+file(GLOB SRC_CPP *.cpp)
+
+set(SCF_SOURCE_FILES ${SCF_SOURCE_FILES} ${SRC_CPP} )
+
+set(SCF_SOURCE_FILES ${SCF_SOURCE_FILES} PARENT_SCOPE)
