@@ -1,9 +1,10 @@
 # scf-security
 
 #### Description
+The full name of SCF is Secure Communication Framework. It provides an SDK library for secure communication, offering configuration templates for TLS protocols and algorithm suites, certificate validity verification, hardware acceleration, and transmission I/O, thereby enhancing the security of TLS secure communication applications for developers' reference.
 
 #### Software Architecture
-Software architecture description
+![](./docs/images/scf_introduction.png)
 
 #### Build and install
 
@@ -27,7 +28,7 @@ sudo yum install -y libboundscheck
 - You can compile using preset scripts directly
 
 ```shell
-sudo sh build_rpm.sh 
+sudo sh build.sh rpm 
 ```
 
 3. Install Instructions
@@ -37,6 +38,15 @@ sudo sh build_rpm.sh
 ```shell
 sudo rpm -ivh --nodeps /root/rpmbuild/RPMS/*/scf-security-*.rpm 
 ```
+
+#### 相关文档
+
+- [api documentation](docs/cn/api_documentation.md)
+- [sample](sample/sample.md)
+
+#### 许可证信息
+
+Secure Communication Framework is licensed under Mulan PSL v2，see [LICENSE](LICENSE) for details。
 
 #### Contribution
 

@@ -1,0 +1,38 @@
+{
+    "tlsVersion": {
+        "minVersion": "",
+        "maxVersion": "",
+        "forbidVersion": [""]
+    },
+    "tlsCipherSuites": [""],
+    "certs": [
+        {
+            "cert": {
+                "certType" : "CA",
+                "storeBuf": "/path/to/ca_file"
+            }
+        }, {
+            "cert": {
+                "certType" : "CRL",
+                "storeBuf": "/path/to/crl_file"
+            }
+        }, {
+            "cert": {
+                "certType" : "EE",
+                "storeBuf": "/path/to/ee_file"
+            }
+        }, {
+             "cert": {
+                 "certType" : "EE_CHAIN",
+                 "storeBuf": "/path/to/ee_chain_file"
+            }
+        }
+    ],
+    "privKey": {
+        "storeBuf": "/path/to/key_file",
+        "keyAuth": {
+            "isCipher" : true,
+            "storeBuf" : "auth_content"
+        }
+    }
+}

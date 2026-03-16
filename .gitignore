@@ -1,1 +1,12 @@
-/.idea
+deps
+external
+build
+output
+package
+.vscode
+src/common/database/
+src/common/rpc/rpcbuildfile/
+.idea
+log
+cmake-build-debug
+test/temp_cert

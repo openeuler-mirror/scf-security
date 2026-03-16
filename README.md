@@ -1,15 +1,16 @@
 # scf-security
 
 #### 介绍
+SCF的全称是Secure Communication Framework，提供安全通信框架SDK库，提供TLS协议和算法套、证书有效性校验、硬件加速、传输IO等配置模板，提升TLS安全通信应用的安全性，供开发者参考。
 
 #### 软件架构
-软件架构说明
+![](./docs/images/scf_introduction.png)
 
 #### 编译安装
 
 1. 编译环境要求
 
-- 编译环境 OpenEuler 内核版本>=6.6
+- 编译环境 OpenEuler 内核版本不低于 6.6
 - TLS组件 Openssl 1.1.1，3.0.9，3.0.12
 - 同时你需要安装以下依赖
 
@@ -27,7 +28,7 @@ sudo yum install -y libboundscheck
 - 直接通过预置脚本进行编译
 
 ```shell
-sudo sh build_rpm.sh 
+sudo sh build.sh rpm 
 ```
 
 3. 安装指导
@@ -35,8 +36,17 @@ sudo sh build_rpm.sh
 - 使用编译生成的rpm包进行安装
 
 ```shell
-sudo rpm -ivh --nodeps /root/rpmbuild/RPMS/*/scf-security-*.rpm 
+sudo rpm -ivh --nodeps package/rpm/*/scf-security-*.rpm 
 ```
+
+#### 相关文档
+
+- [接口文档](docs/cn/api_documentation.md)
+- [代码样例](sample/sample.md)
+
+#### 许可证信息
+
+本项目遵循 Mulan PSL v2 许可证协议，详情请见 [LICENSE](LICENSE) 文件。
 
 #### 参与贡献
 

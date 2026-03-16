@@ -1,0 +1,8 @@
+{
+    "tlsVersion": {
+        "minVersion": "SSL_VERSION_TLS13",
+        "maxVersion": "SSL_VERSION_TLS13",
+        "forbidVersion": []
+    },
+    "tlsCiphersuites": ["SSL_AES_256_GCM_SHA384"]
+}
