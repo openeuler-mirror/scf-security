@@ -209,15 +209,14 @@ function build_cicd_coverage() {
     make -j${CPU_NUM}
     make install
     chmod 400 ${OUTPUT_DIR}/scf/lib64/libscf.so
-    ctest --output-on-failure
-    make coverage
+    run_test
 }
 
 function  run_test() {
     if [[ "${enable_test}" == "On" ]]; then
-      ctest --output-on-failure
+      ctest --output-junit test_results.xml --output-on-failure --test-output-size-passed 0 --test-output-size-failed 0
     fi
-    if [[ "${enable_test}" == "On" ]]; then
+    if [[ "${enable_coverage}" == "On" ]]; then
       make coverage
     fi
 }
@@ -255,6 +254,7 @@ function build_cmake() {
 
     if [[ $build_target == 'cicd_coverage' ]]; then
         enable_test='ON'
+        enable_coverage="ON"
         build_cicd_coverage
     fi
 
