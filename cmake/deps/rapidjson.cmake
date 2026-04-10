@@ -6,15 +6,11 @@ if(NOT DOWNLOAD_DEPENDENCY)
     target_include_directories(librapidjson INTERFACE /usr/include)
     add_library(Dependency::rapidjson ALIAS librapidjson)
 else()
-    # Use FetchContent to download from source
-    if(NOT EXISTS "${DOWNLOADED_DEPENDENCY_DIR}/rapidjson")
-        set(FETCH_CONTENT_URL https://gitcode.com/GitHub_Trending/ra/rapidjson.git)
-    endif()
-
     ExternalProject_Add(rapidjson
-        GIT_REPOSITORY ${FETCH_CONTENT_URL}
+        GIT_REPOSITORY https://gitcode.com/GitHub_Trending/ra/rapidjson.git
         GIT_TAG master
         GIT_SUBMODULES_RECURSE Off
+        GIT_SUBMODULES ""
         GIT_SHALLOW On
         PREFIX ${DEPENDENCY_INSTALL_PREFIX_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_DEPENDENCY_INSTALL_PREFIX}

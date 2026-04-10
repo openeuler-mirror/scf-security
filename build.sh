@@ -243,12 +243,10 @@ function build_cmake() {
     fi
 
     if [[ $build_target == 'cicd_default' ]]; then
-        enable_test='On'
         build_cicd_default
     fi
 
     if [[ $build_target == 'rpm' ]]; then
-        enable_test='On'
         build_rpm
     fi
 

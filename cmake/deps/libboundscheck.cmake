@@ -8,14 +8,8 @@ if(NOT DOWNLOAD_DEPENDENCY)
     target_link_libraries(libboundscheck-itf INTERFACE /usr/lib64/libboundscheck.so)
     add_library(Dependency::secure_c ALIAS libboundscheck-itf)
 else()
-    # Use FetchContent to download and build from source
-    set(_src "${DOWNLOADED_DEPENDENCY_DIR}/libboundscheck")
-    if(NOT EXISTS "${_src}")
-        set(_src https://atomgit.com/openeuler/libboundscheck.git)
-    endif()
-
     ExternalProject_Add(libboundscheck-src
-        GIT_REPOSITORY ${_src}
+        GIT_REPOSITORY https://atomgit.com/openeuler/libboundscheck.git
         GIT_TAG master
         GIT_SHALLOW On
         PREFIX ${DEPENDENCY_INSTALL_PREFIX_NAME}
