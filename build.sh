@@ -209,15 +209,14 @@ function build_cicd_coverage() {
     make -j${CPU_NUM}
     make install
     chmod 400 ${OUTPUT_DIR}/scf/lib64/libscf.so
-    ctest --output-on-failure
-    make coverage
+    run_test
 }
 
 function  run_test() {
     if [[ "${enable_test}" == "On" ]]; then
-      ctest --output-on-failure
+      make build_test -j${CPU_NUM}
     fi
-    if [[ "${enable_test}" == "On" ]]; then
+    if [[ "${enable_coverage}" == "On" ]]; then
       make coverage
     fi
 }
@@ -225,7 +224,7 @@ function  run_test() {
 # 执行 CMake 构建
 function build_cmake() {
 
-    if [[ $enable_clean == 'ON' ]]; then
+    if [[ $enable_clean == 'On' ]]; then
         clean $build_target
     fi
 
@@ -244,17 +243,16 @@ function build_cmake() {
     fi
 
     if [[ $build_target == 'cicd_default' ]]; then
-        enable_test='ON'
         build_cicd_default
     fi
 
     if [[ $build_target == 'rpm' ]]; then
-        enable_test='ON'
         build_rpm
     fi
 
     if [[ $build_target == 'cicd_coverage' ]]; then
-        enable_test='ON'
+        enable_test='On'
+        enable_coverage="On"
         build_cicd_coverage
     fi
 
@@ -305,11 +303,11 @@ function parse_args() {
             fi
             ;;
         -C | --coverage)
-            enable_coverage='ON'
+            enable_coverage='On'
             shift
             ;;
         -c | --clean)
-            clean   # 清理构建目录
+            clean "$2"  # 清理构建目录
             shift
             ;;
         *)
@@ -324,10 +322,17 @@ function clean() {
     local target_dirs=()
     case $1 in
         "3rdparty")
-            target_dirs+=("${PROJECT_ROOT_DIR}/deps")
+            target_dirs+=("${PROJECT_ROOT_DIR}/external")
             ;;
         "package")
             target_dirs+=("${PROJECT_ROOT_DIR}/build")
+            target_dirs+=("${PROJECT_ROOT_DIR}/package")
+            target_dirs+=("${PROJECT_ROOT_DIR}/output")
+            ;;
+        "all")
+            target_dirs+=("${PROJECT_ROOT_DIR}/external")
+            target_dirs+=("${PROJECT_ROOT_DIR}/build")
+            target_dirs+=("${PROJECT_ROOT_DIR}/package")
             target_dirs+=("${PROJECT_ROOT_DIR}/output")
             ;;
         *)

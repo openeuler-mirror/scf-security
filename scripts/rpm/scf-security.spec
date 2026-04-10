@@ -7,10 +7,8 @@ License:        MulanPSL-2.0
 URL:            https://atomgit.com/openeuler/scf-security.git
 Source0:        %{name}-%{version}.tar.gz
 
-BuildRequires:  g++, make, libboundscheck
+BuildRequires:  g++, make, libboundscheck, rapidjson-devel
 BuildRequires:  gcc-c++ >= 8, cmake >= 3.14
-
-# Optional devel-time dependencies if using system libraries
 
 # Runtime Requires
 Requires:  libboundscheck
@@ -30,14 +28,6 @@ headers and libraries for building applications that use the SCF security framew
 %prep
 %autosetup -n %{name}-%{version} -p2
 
-# Extract dependency packages to directories expected by CMake: build/deps/src
-# Note: Directory names must match ExternalProject names in cmake/deps/*.cmake
-#   - googletest
-#   - rapidjson
-DEPS_SRC="%{build_dir}/deps/src"
-mkdir -p "$DEPS_SRC"
-
-%global root_dir        %{_builddir}/%{name}-%{version}
 %global build_dir       %{_builddir}/%{name}-%{version}/build
 %global output_dir      %{_builddir}/%{name}-%{version}/output
 
@@ -47,8 +37,8 @@ export CXXFLAGS="%{optflags}"
 
 cmake -S . -B build \
     -DBUILD_TEST=Off \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo  \
-    -DDOWNLOAD_DEPENDENCY=On \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DDOWNLOAD_DEPENDENCY=Off \
     -DBUILD_FUZZ=Off \
     -DCMAKE_INSTALL_PREFIX=%{output_dir}
 
@@ -87,14 +77,10 @@ find %{buildroot} -name "*.so.*" -exec chmod u+s {} \;
 %attr(550, root, root) %{_libdir}/libscf.so
 
 %files devel
-%dir %attr(750, root, root) %{_sysconfdir}/scf
-%config(noreplace) %attr(640, root, root) %{_sysconfdir}/scf/config_template.json
-
 %attr(440, root, root) %{_includedir}/scf.h
 %attr(440, root, root) %{_includedir}/scf_def.h
 %attr(440, root, root) %{_includedir}/scf_errno.h
 %attr(440, root, root) %{_includedir}/scf_ssl.h
-%attr(550, root, root) %{_libdir}/libscf.so
 
 %post
 
