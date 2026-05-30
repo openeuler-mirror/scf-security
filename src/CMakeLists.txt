@@ -13,6 +13,9 @@ target_include_directories(
                 ${PROJECT_SOURCE_DIR}/src/common/constant
                 ${PROJECT_SOURCE_DIR}/src/adaptor/hitls
                 ${PROJECT_SOURCE_DIR}/src/adaptor/openssl
+                ${PROJECT_SOURCE_DIR}/src/transport
+                ${PROJECT_SOURCE_DIR}/src/crypto
+                ${PROJECT_SOURCE_DIR}/src/connection
 )
 
 # note project
@@ -43,6 +46,9 @@ add_subdirectory(callback)
 add_subdirectory(common)
 add_subdirectory(adaptor)
 add_subdirectory(scf)
+add_subdirectory(transport)
+add_subdirectory(crypto)
+add_subdirectory(connection)
 
 target_sources(scf PRIVATE ${SCF_SOURCE_FILES})
 
@@ -54,6 +60,17 @@ target_link_libraries(
         Dependency::rapidjson
         Dependency::secure_c
 )
+
+# OpenSSL is needed by default_crypto_engine and kae_provider_engine (direct API calls),
+# and by openssl_adaptor (SSL_CTX_new_ex, SSL_CTX_set1_groups_list, etc. for Provider integration).
+# Use built OpenSSL when DOWNLOAD_DEPENDENCY is On, otherwise use system OpenSSL
+if(DOWNLOAD_DEPENDENCY)
+    # OpenSSL was built by cmake/deps/openssl.cmake, targets already defined
+    target_link_libraries(scf PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+else()
+    find_package(OpenSSL REQUIRED)
+    target_link_libraries(scf PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+endif()
 
 if (BUILD_FUZZ)
     target_link_libraries(scf PUBLIC Dependency::secodefuzz)

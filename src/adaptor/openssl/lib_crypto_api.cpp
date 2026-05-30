@@ -69,6 +69,7 @@ uint32_t LibCryptoApi::LoadAll()
     ret |= CONNECTOR_SELF_DLSYM(X509_getm_notBefore);
     ret |= CONNECTOR_SELF_DLSYM(X509_getm_notAfter);
     ret |= CONNECTOR_SELF_DLSYM(X509_get_serialNumber);
+    ret |= CONNECTOR_SELF_DLSYM(X509_get0_serialNumber);
     ret |= CONNECTOR_SELF_DLSYM(X509_verify_cert);
     ret |= CONNECTOR_SELF_DLSYM(X509_STORE_CTX_get_error);
     ret |= CONNECTOR_SELF_DLSYM(BIO_new_mem_buf);
@@ -97,6 +98,7 @@ void LibCryptoApi::UnLoadAll()
     X509_getm_notBefore.Reset();
     X509_getm_notAfter.Reset();
     X509_get_serialNumber.Reset();
+    X509_get0_serialNumber.Reset();
     X509_verify_cert.Reset();
     X509_STORE_CTX_get_error.Reset();
     BIO_new_mem_buf.Reset();

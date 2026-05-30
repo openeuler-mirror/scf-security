@@ -391,4 +391,12 @@ void *SCF_GetCurrentCert(SCF_PolicyObj *obj);
 }
 #endif
 
+// ============================================================
+// 高层 C++ Connection API (推荐新用户使用)
+// 包含 SCFConnection, SCFSecurityLevel, 传输IO抽象, 密码引擎抽象
+// ============================================================
+#ifdef __cplusplus
+#include "scf_connection.h"
+#endif
+
 #endif

@@ -58,6 +58,54 @@ typedef enum {
     SCF_SSL_AES_128_CCM_SHA256 = 0x1304,        // 取值来源于 rfc 8446
 } SCF_SSL_CipherSuite;
 
+// ============================================================
+// NIST SP 800-57 安全强度等级定义
+// ============================================================
+// 参考: NIST SP 800-57 Part 1 Rev.5, Table 2
+// 对称密钥等效安全强度与对应算法选择
+// ============================================================
+#define SCF_SECURITY_STRENGTH_112BIT  112  ///< 112-bit: 3DES等效, 最低可接受 (2030年前)
+#define SCF_SECURITY_STRENGTH_128BIT  128  ///< 128-bit: AES-128等效, NIST推荐最低
+#define SCF_SECURITY_STRENGTH_192BIT  192  ///< 192-bit: AES-192等效
+#define SCF_SECURITY_STRENGTH_256BIT  256  ///< 256-bit: AES-256等效, 最高经典安全
+
+// ============================================================
+// 抗量子 (Post-Quantum) 密钥交换组名称
+// ============================================================
+// OpenSSL 3.x 通过 oqsprovider (liboqs) 或内置实现支持以下命名组。
+// 使用时通过 SSL_CTX_set1_groups_list() / SSL_set1_groups_list() 配置。
+//
+// NIST PQC 标准化算法 (FIPS 203/204/205):
+//   ML-KEM-512/768/1024  (FIPS 203, 原 CRYSTALS-Kyber)
+//   ML-DSA-44/65/87      (FIPS 204, 原 CRYSTALS-Dilithium)
+//   SLH-DSA              (FIPS 205, 原 SPHINCS+)
+//
+// 混合密钥交换组 (Hybrid KEM: ECDH + PQ KEM 同时使用):
+//   两个独立的密钥协商结果进行组合，任何一个被攻破都不影响安全性。
+// ============================================================
+
+// ECDHE 经典命名组 (TLS 1.3)
+#define SCF_NAMED_GROUP_X25519           "X25519"             // RFC 8446, 128-bit
+#define SCF_NAMED_GROUP_P256             "P-256"              // RFC 8446, 128-bit
+#define SCF_NAMED_GROUP_P384             "P-384"              // RFC 8446, 192-bit
+#define SCF_NAMED_GROUP_P521             "P-521"              // RFC 8446, 256-bit
+
+// 纯后量子命名组 (独立 PQ KEM)
+#define SCF_NAMED_GROUP_KYBER512         "kyber512"           // NIST Level 1 (≈AES-128)
+#define SCF_NAMED_GROUP_KYBER768         "kyber768"           // NIST Level 3 (≈AES-192)
+#define SCF_NAMED_GROUP_KYBER1024        "kyber1024"          // NIST Level 5 (≈AES-256)
+#define SCF_NAMED_GROUP_MLKEM512         "mlkem512"           // FIPS 203 ML-KEM-512 (NIST L1)
+#define SCF_NAMED_GROUP_MLKEM768         "mlkem768"           // FIPS 203 ML-KEM-768 (NIST L3)
+#define SCF_NAMED_GROUP_MLKEM1024        "mlkem1024"          // FIPS 203 ML-KEM-1024 (NIST L5)
+
+// 混合后量子命名组 (Hybrid ECDH + PQ KEM, 双重保护)
+#define SCF_NAMED_GROUP_P256_KYBER512    "p256_kyber512"      // Hybrid: ECDH-P256 + Kyber-512 (128-bit PQ)
+#define SCF_NAMED_GROUP_X25519_KYBER512  "x25519_kyber512"    // Hybrid: X25519 + Kyber-512 (128-bit PQ)
+#define SCF_NAMED_GROUP_P384_KYBER768    "p384_kyber768"      // Hybrid: ECDH-P384 + Kyber-768 (192-bit PQ)
+#define SCF_NAMED_GROUP_P521_KYBER1024   "p521_kyber1024"     // Hybrid: ECDH-P521 + Kyber-1024 (256-bit PQ)
+#define SCF_NAMED_GROUP_X25519_MLKEM512 "x25519_mlkem512"     // Hybrid: X25519 + ML-KEM-512 (128-bit PQ, FIPS)
+#define SCF_NAMED_GROUP_P521_MLKEM1024  "p521_mlkem1024"      // Hybrid: ECDH-P521 + ML-KEM-1024 (256-bit PQ, FIPS)
+
 // 枚举定义
 typedef enum SCFRole {
     SCF_ROLE_NONE = 0,    // 未指定

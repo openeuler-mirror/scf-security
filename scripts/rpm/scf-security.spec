@@ -9,6 +9,7 @@ Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  g++, make, libboundscheck, rapidjson-devel
 BuildRequires:  gcc-c++ >= 8, cmake >= 3.14
+BuildRequires:  openssl-devel
 
 # Runtime Requires
 Requires:  libboundscheck
