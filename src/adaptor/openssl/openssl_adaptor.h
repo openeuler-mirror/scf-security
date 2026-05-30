@@ -16,6 +16,7 @@
 
 #include <string>
 #include "abstract_tls_adaptor.h"
+#include "scf_crypto_engine.h"
 #include "scf_def.h"
 #include "scf_errno.h"
 #include "openssl_def.h"
@@ -123,6 +124,14 @@ public:
 
     int32_t X509VerifyChain(void *storeCtx) override;
 
+    // --- 密码引擎注入 (v2.0) ---
+    void SetCryptoEngine(ICryptoEngine *engine) override;
+    ICryptoEngine *GetCryptoEngine() const override;
+
+    // --- 密钥交换组配置 (v2.0, 抗量子支持) ---
+    int32_t SetKeyExchangeGroups(
+        SCF_PolicyCtx *ctx, const std::vector<std::string> &groups) override;
+
 protected:
     int32_t ProtocolStrToInt(const char *version, int32_t &intVer);
 
@@ -178,6 +187,7 @@ protected:
     uint32_t CheckVersion(SCF_PolicyObj *obj);
 private:
     static bool g_certlog_switch;
+    ICryptoEngine *m_cryptoEngine;  ///< 外部密码引擎（可为 nullptr 表示使用默认）
 };
 }
 

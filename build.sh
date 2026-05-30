@@ -41,7 +41,7 @@ build_target='all'
 build_type='Release'
 enable_coverage='Off'
 enable_test='Off'
-download_dependency='Off' # 是否自动下载依赖，否则请手动下载依赖至 project_root/external 文件夹
+download_dependency='On' # 是否自动下载依赖，否则请手动下载依赖至 project_root/external 文件夹
 enable_fuzz='Off'
 
 CPU_NUM=$(grep -w processor /proc/cpuinfo|wc -l)

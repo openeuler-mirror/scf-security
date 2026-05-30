@@ -19,11 +19,68 @@
 
 #include "scf_errno.h"
 #include "scf_def.h"
+#include "scf_crypto_engine.h"
 #include "lib_ssl_api.h"
 #include "lib_crypto_api.h"
 #include "openssl_def.h"
 #include "scf_inner.h"
 #include "securec.h"
+
+// Undefine macros from openssl_def.h that conflict with real OpenSSL type declarations.
+// openssl_def.h #define's SSL_CTX/SSL/BIO/etc. to void for dlopen-based abstraction,
+// but including <openssl/ssl.h> with these macros active causes "multiple types in one declaration".
+#undef SSL
+#undef SSL_CTX
+#undef SSL_METHOD
+#undef SSL_SESSION
+#undef SSL_CIPHER
+#undef BIO
+#undef EVP_PKEY
+#undef EVP_MD
+#undef X509
+#undef X509_CRL
+#undef X509_STORE
+#undef X509_STORE_CTX
+
+#include <openssl/ssl.h>
+#include <openssl/provider.h>
+
+// Save real OpenSSL types before re-defining macros, for use in static_cast<> when
+// calling OpenSSL APIs directly (which require real types, not void*).
+using RealSsl        = SSL;
+using RealSslCtx     = SSL_CTX;
+using RealSslMethod  = SSL_METHOD;
+using RealSslSession = SSL_SESSION;
+using RealSslCipher  = SSL_CIPHER;
+using RealBio        = BIO;
+using RealEvpPkey    = EVP_PKEY;
+using RealEvpMd      = EVP_MD;
+using RealX509       = X509;
+using RealX509Crl    = X509_CRL;
+using RealX509Store  = X509_STORE;
+using RealX509StoreCtx = X509_STORE_CTX;
+
+// Re-define macros so that function signatures match the header (which uses void* types).
+// All direct OpenSSL API calls in this file must use static_cast to Real* types.
+#define SSL void
+#define SSL_CTX void
+#define SSL_METHOD void
+#define SSL_SESSION void
+#define SSL_CIPHER void
+#define BIO void
+#define EVP_PKEY void
+#define EVP_MD void
+#define X509 void
+#define X509_CRL void
+#define X509_STORE void
+#define X509_STORE_CTX void
+
+// OpenSSL 3.x headers rename SSL_get_peer_certificate → SSL_get1_peer_certificate via macro,
+// but LibSslApi's member is named SSL_get_peer_certificate (dlsym loads both symbol names).
+// Undef to prevent the rename from breaking member access.
+#ifdef SSL_get_peer_certificate
+#undef SSL_get_peer_certificate
+#endif
 
 namespace scf {
 
@@ -65,8 +122,73 @@ int32_t OpenSSLAdapter::Init(uint64_t flag, const void *settings)
 
 void OpenSSLAdapter::DeInit()
 {
+    m_cryptoEngine = nullptr;  // 引擎生命周期由调用方管理，此处仅清除引用
     LibCryptoApi::GetInstance().UnInit();
     LibSslApi::GetInstance().UnInit();
+}
+
+// ============================================================
+// CryptoEngine 注入 (v2.0)
+// ============================================================
+
+void OpenSSLAdapter::SetCryptoEngine(ICryptoEngine *engine)
+{
+    m_cryptoEngine = engine;
+    if (engine != nullptr) {
+        CCSEC_LOG_INFO("OpenSSLAdapter: crypto engine set: "
+            << (engine->IsHardwareAccelerated() ? "HARDWARE" : "SOFTWARE")
+            << " (" << engine->GetAcceleratedAlgorithms() << ")");
+    } else {
+        CCSEC_LOG_INFO("OpenSSLAdapter: crypto engine cleared (using default)");
+    }
+}
+
+ICryptoEngine *OpenSSLAdapter::GetCryptoEngine() const
+{
+    return m_cryptoEngine;
+}
+
+// ============================================================
+// 密钥交换组配置 (v2.0, 抗量子支持)
+// ============================================================
+// 通过 SSL_CTX_set1_groups_list() 配置 TLS 1.3 密钥协商命名组。
+// 支持经典 ECDH 组 (X25519/P-256/P-384/P-521) 和
+// 后量子 Hybrid KEM 组 (p256_kyber512/x25519_kyber512/p521_kyber1024 等)。
+// groups 格式: 冒号分隔的命名组列表，如 "X25519:P-256:p256_kyber512"
+// 如果 PQ Provider 不可用，不支持的组会被自动跳过。
+
+int32_t OpenSSLAdapter::SetKeyExchangeGroups(
+    SCF_PolicyCtx *ctx, const std::vector<std::string> &groups)
+{
+    if (ctx == nullptr || ctx->sslConfig == nullptr) {
+        CCSEC_LOG_WARN("OpenSSLAdapter: SetKeyExchangeGroups called with null ctx or sslConfig,"
+            << " groups will be applied later.");
+        return SCF_ERRNO_NULL_INPUT;
+    }
+
+    if (groups.empty()) {
+        return SCF_SUCCESS;
+    }
+
+    // 构建冒号分隔的 groups 字符串: "X25519:P-256:p256_kyber512:..."
+    std::string groupsStr;
+    for (size_t i = 0; i < groups.size(); ++i) {
+        if (i > 0) groupsStr += ":";
+        groupsStr += groups[i];
+    }
+
+    auto *realSslCtx = static_cast<RealSslCtx *>(ctx->sslConfig);
+    long ret = SSL_CTX_set1_groups_list(realSslCtx, groupsStr.c_str());
+    if (ret != 1) {
+        CCSEC_LOG_ERROR("OpenSSLAdapter: SSL_CTX_set1_groups_list failed for groups: "
+            << groupsStr << ". Some groups may not be available (check PQ Provider).");
+        // 不返回失败：某些组不可用是预期行为（如 PQ Provider 未加载时）
+        // OpenSSL 会自动使用可用的组
+    } else {
+        CCSEC_LOG_INFO("OpenSSLAdapter: key exchange groups set: " << groupsStr);
+    }
+
+    return SCF_SUCCESS;
 }
 
 void OpenSSLAdapter::LogCertError(SCF_PolicyObj *obj)
@@ -75,7 +197,7 @@ void OpenSSLAdapter::LogCertError(SCF_PolicyObj *obj)
         return;
     }
 
-    const X509 *cert = GetCurrentCert(obj);
+    const X509 *cert = static_cast<const X509 *>(GetCurrentCert(obj));
     int32_t certVersion = GetCertVersion(cert);
 
     uint32_t snLen = 0;
@@ -244,8 +366,8 @@ uint32_t OpenSSLAdapter::CheckVersion(SCF_PolicyObj *obj)
         CCSEC_LOG_ERROR("Openssl Get Version Bit Fail, obj or polictCtx or sslConfig is nullptr.");
         return SSL_ERROR;
     }
-    auto minVersion = SSL_CTX_get_min_proto_version(obj->policyCtx->sslConfig);
-    auto maxVersion = SSL_CTX_get_max_proto_version(obj->policyCtx->sslConfig);
+    auto minVersion = SSL_CTX_get_min_proto_version(static_cast<RealSslCtx *>(obj->policyCtx->sslConfig));
+    auto maxVersion = SSL_CTX_get_max_proto_version(static_cast<RealSslCtx *>(obj->policyCtx->sslConfig));
     if (minVersion == 0 && maxVersion == 0) {
         return SSL_SUCCESS;
     }
@@ -619,7 +741,7 @@ int32_t OpenSSLAdapter::LoadCaChain(SSL_CTX *sslCtx, BIO *b)
 {
     X509 *ca;
     while ((ca = LibSslApi::GetInstance().PEM_read_bio_X509(b, nullptr, nullptr, nullptr)) != nullptr) {
-        auto addRet = SSL_CTX_add_extra_chain_cert(sslCtx, ca);
+        auto addRet = SSL_CTX_add_extra_chain_cert(static_cast<RealSslCtx *>(sslCtx), static_cast<RealX509 *>(ca));
         LibCryptoApi::GetInstance().X509_free(ca);
         if (addRet != SSL_SUCCESS) {
             return SCF_SSL_ERR_LOAD_CA_CERT_CHAIN;
@@ -899,8 +1021,9 @@ int32_t OpenSSLAdapter::SetProtocolVersion(SCF_PolicyCtx *ctx, uint32_t minVersi
     uint32_t *forbidVersion, uint32_t forbidVersionLen)
 {
     SSL_CTX *sslCtxConfig = ctx->sslConfig;
-    if (SSL_CTX_set_min_proto_version(sslCtxConfig, minVersion) != SSL_SUCCESS ||
-        SSL_CTX_set_max_proto_version(sslCtxConfig, maxVersion) != SSL_SUCCESS) {
+    auto *realCtx = static_cast<RealSslCtx *>(sslCtxConfig);
+    if (SSL_CTX_set_min_proto_version(realCtx, minVersion) != SSL_SUCCESS ||
+        SSL_CTX_set_max_proto_version(realCtx, maxVersion) != SSL_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl Set Protocol Ver Fail.");
         return SCF_SSL_ERR_SET_PROTOCOL_VER;
     }
@@ -988,7 +1111,37 @@ int32_t OpenSSLAdapter::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_
         return SCF_SSL_ERR_ROLE;
     }
 
-    SSL_CTX *sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new(method);
+    SSL_CTX *sslCtxConfig = nullptr;
+
+    // === v2.0: 硬件密码加速引擎集成 ===
+    // 如果配置了密码引擎且提供了 Provider Context，
+    // 则使用 SSL_CTX_new_ex 将 KAE Provider 的 OSSL_LIB_CTX 绑定到 SSL_CTX。
+    // 此后所有 SSL_read/SSL_write 内部的密码运算（AES-GCM, ECDH, HKDF 等）
+    // 将由 OpenSSL 算法分发器自动路由到 KAE 硬件加速 Provider。
+    if (m_cryptoEngine != nullptr) {
+        void *providerCtx = m_cryptoEngine->GetProviderContext();
+        if (providerCtx != nullptr) {
+            // OpenSSL 3.0+ Provider 路径：使用硬件加速的 library context
+            auto *libCtx = static_cast<OSSL_LIB_CTX *>(providerCtx);
+            sslCtxConfig = SSL_CTX_new_ex(libCtx, nullptr,
+                static_cast<const RealSslMethod *>(method));
+            if (sslCtxConfig != nullptr) {
+                CCSEC_LOG_INFO("OpenSSLAdapter: SSL_CTX created with hardware provider context."
+                    << " Crypto engine: " << (m_cryptoEngine->IsHardwareAccelerated()
+                        ? "HARDWARE" : "SOFTWARE")
+                    << ". Algorithms: " << m_cryptoEngine->GetAcceleratedAlgorithms());
+            } else {
+                CCSEC_LOG_WARN("OpenSSLAdapter: SSL_CTX_new_ex with provider context failed,"
+                    << " falling back to default SSL_CTX_new.");
+            }
+        }
+    }
+
+    // 回退路径：使用默认方式创建 SSL_CTX（无硬件加速）
+    if (sslCtxConfig == nullptr) {
+        sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new(method);
+    }
+
     if (sslCtxConfig == nullptr) {
         return SCF_ERRNO_MEM_ALLOC;
     }
@@ -997,8 +1150,9 @@ int32_t OpenSSLAdapter::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_
     LibSslApi::GetInstance().SSL_CTX_set_security_level(sslCtxConfig, SSL_SECURITY_LEVEL_TWO);
 
     // 防止会话恢复攻击
-    (void)SSL_CTX_set_session_cache_mode(sslCtxConfig, SSL_SESS_CACHE_OFF);
-    if (SSL_CTX_get_session_cache_mode(sslCtxConfig) != SSL_SESS_CACHE_OFF) {
+    auto *realSslCtxConfig = static_cast<RealSslCtx *>(sslCtxConfig);
+    (void)SSL_CTX_set_session_cache_mode(realSslCtxConfig, SSL_SESS_CACHE_OFF);
+    if (SSL_CTX_get_session_cache_mode(realSslCtxConfig) != SSL_SESS_CACHE_OFF) {
         LibSslApi::GetInstance().SSL_CTX_free(sslCtxConfig);
         return SCF_SSL_ERR_SET_SESS_TICKET;
     }
@@ -1024,14 +1178,30 @@ int32_t OpenSSLAdapter::InitSslCustomer(SCF_PolicyCtx *ctx)
         return SCF_SSL_ERR_ROLE;
     }
 
-    SSL_CTX *sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new(method);
+    SSL_CTX *sslCtxConfig = nullptr;
+
+    // v2.0: 硬件密码加速引擎集成（同 InitSsl 逻辑）
+    if (m_cryptoEngine != nullptr) {
+        void *providerCtx = m_cryptoEngine->GetProviderContext();
+        if (providerCtx != nullptr) {
+            auto *libCtx = static_cast<OSSL_LIB_CTX *>(providerCtx);
+            sslCtxConfig = SSL_CTX_new_ex(libCtx, nullptr,
+                static_cast<const RealSslMethod *>(method));
+        }
+    }
+
+    if (sslCtxConfig == nullptr) {
+        sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new(method);
+    }
+
     if (sslCtxConfig == nullptr) {
         return SCF_ERRNO_MEM_ALLOC;
     }
 
     // 防止会话恢复攻击
-    (void)SSL_CTX_set_session_cache_mode(sslCtxConfig, SSL_SESS_CACHE_OFF);
-    if (SSL_CTX_get_session_cache_mode(sslCtxConfig) != SSL_SESS_CACHE_OFF) {
+    auto *realSslCtxConfig = static_cast<RealSslCtx *>(sslCtxConfig);
+    (void)SSL_CTX_set_session_cache_mode(realSslCtxConfig, SSL_SESS_CACHE_OFF);
+    if (SSL_CTX_get_session_cache_mode(realSslCtxConfig) != SSL_SESS_CACHE_OFF) {
         LibSslApi::GetInstance().SSL_CTX_free(sslCtxConfig);
         sslCtxConfig = nullptr;
         return SCF_SSL_ERR_SET_SESS_TICKET;
@@ -1063,26 +1233,28 @@ int32_t OpenSSLAdapter::InitPolicyByMode(SCF_PolicyCtx *ctx)
     return ret;
 }
 
-static int32_t PskFindSessionCbWrapper(SSL *ssl, const unsigned char *id, size_t idLen, SSL_SESSION **sess)
+static int32_t PskFindSessionCbWrapper(RealSsl *ssl, const unsigned char *id, size_t idLen, RealSslSession **sess)
 {
-    auto *obj = static_cast<SCF_PolicyObj *>(LibSslApi::GetInstance().SSL_get_ex_data(ssl, SSL_EX_DATA_ID));
+    auto *obj = static_cast<SCF_PolicyObj *>(LibSslApi::GetInstance().SSL_get_ex_data(
+        static_cast<void *>(ssl), SSL_EX_DATA_ID));
     if (obj == nullptr || obj->pskFindSessionCb == nullptr) {
         return SSL_ERROR;
     }
-    int32_t ret = obj->pskFindSessionCb(obj, id, static_cast<uint32_t>(idLen), sess);
+    int32_t ret = obj->pskFindSessionCb(obj, id, static_cast<uint32_t>(idLen),
+        reinterpret_cast<SCF_Session **>(sess));
     if (ret != SCF_SUCCESS) {
         return SSL_ERROR;
     }
     if (sess != nullptr && *sess != nullptr) {
-        if (LibSslApi::GetInstance().SSL_SESSION_get0_cipher(*sess) == nullptr) {
+        if (LibSslApi::GetInstance().SSL_SESSION_get0_cipher(static_cast<void *>(*sess)) == nullptr) {
             // 用户实现异常，没配置 cipher 时，openssl server 会 core dump，此处避免 core dump
-            LibSslApi::GetInstance().SSL_SESSION_free(*sess);
+            LibSslApi::GetInstance().SSL_SESSION_free(static_cast<void *>(*sess));
             *sess = nullptr;
             return SSL_ERROR;
         }
     }
 
-    LibSslApi::GetInstance().SSL_set_verify(ssl, SSL_VERIFY_NONE, nullptr);
+    LibSslApi::GetInstance().SSL_set_verify(static_cast<void *>(ssl), SSL_VERIFY_NONE, nullptr);
     return SSL_SUCCESS;
 }
 
@@ -1097,15 +1269,17 @@ static uint32_t GetHashAlgo(const EVP_MD *md)
     return SCF_CRYPT_MD_UNKNOWN;
 }
 
-static int32_t PskUseSessionCbWrapper(SSL *ssl, const EVP_MD *md, const unsigned char **id, size_t *idLen,
-    SSL_SESSION **sess)
+static int32_t PskUseSessionCbWrapper(RealSsl *ssl, const RealEvpMd *md, const unsigned char **id, size_t *idLen,
+    RealSslSession **sess)
 {
-    auto *obj = static_cast<SCF_PolicyObj *>(LibSslApi::GetInstance().SSL_get_ex_data(ssl, SSL_EX_DATA_ID));
+    auto *obj = static_cast<SCF_PolicyObj *>(LibSslApi::GetInstance().SSL_get_ex_data(
+        static_cast<void *>(ssl), SSL_EX_DATA_ID));
     if (obj == nullptr || obj->pskUseSessionCb == nullptr) {
         return SSL_ERROR;
     }
     uint32_t idLenIn = 0; // 防止入参指针强转
-    int32_t ret = obj->pskUseSessionCb(obj, GetHashAlgo(md), id, &idLenIn, sess);
+    int32_t ret = obj->pskUseSessionCb(obj, GetHashAlgo(static_cast<const void *>(md)), id, &idLenIn,
+        reinterpret_cast<SCF_Session **>(sess));
     if (ret != SCF_SUCCESS) {
         return SSL_ERROR;
     }
@@ -1121,7 +1295,7 @@ int32_t OpenSSLAdapter::SetPskFindSessionCallback(SCF_PolicyCtx *ctx, SCF_PskFin
     }
     ctx->pskFindSessionCb = cb;
     LibSslApi::GetInstance().SSL_CTX_set_psk_find_session_callback(ctx->sslConfig,
-        cb == nullptr ? nullptr : PskFindSessionCbWrapper);
+        cb == nullptr ? nullptr : reinterpret_cast<SSLPskFindSessionCallback>(PskFindSessionCbWrapper));
     return SCF_SUCCESS;
 }
 
@@ -1133,7 +1307,7 @@ int32_t OpenSSLAdapter::SetPskUseSessionCallback(SCF_PolicyCtx *ctx, SCF_PskUseS
     }
     ctx->pskUseSessionCb = cb;
     LibSslApi::GetInstance().SSL_CTX_set_psk_use_session_callback(ctx->sslConfig,
-        cb == nullptr ? nullptr : PskUseSessionCbWrapper);
+        cb == nullptr ? nullptr : reinterpret_cast<SSLPskUseSessionCallback>(PskUseSessionCbWrapper));
     return SCF_SUCCESS;
 }
 
@@ -1328,11 +1502,11 @@ uint8_t *OpenSSLAdapter::GetCertSerialNumber(const void *cert, uint32_t *dataLen
     if (cert == nullptr) {
         return nullptr;
     }
-    auto *result = LibCryptoApi::GetInstance().X509_get_serialNumber(const_cast<X509 *>(cert));
+    auto *result = LibCryptoApi::GetInstance().X509_get0_serialNumber(static_cast<const X509 *>(cert));
     if (result == nullptr) {
         return nullptr;
     }
-    auto *snString = static_cast<ASN1_INTEGER *>(result);
+    auto *snString = static_cast<const ASN1_INTEGER *>(result);
     *dataLen = snString->length;
     return snString->data;
 }

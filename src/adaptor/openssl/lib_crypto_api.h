@@ -44,6 +44,7 @@ public:
     DlFun<void *, const void *> X509_getm_notBefore;
     DlFun<void *, const void *> X509_getm_notAfter;
     DlFun<void *, void *> X509_get_serialNumber;
+    DlFun<const void *, const void *> X509_get0_serialNumber;
     DlFun<int, const void *> X509_verify_cert;
     DlFun<int, void *> X509_STORE_CTX_get_error;
     DlFun<void *, void *, int> BIO_new_mem_buf;

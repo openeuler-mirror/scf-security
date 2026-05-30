@@ -67,6 +67,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE On)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 
+# Request POSIX.1-2001 features (inet_pton, getaddrinfo, etc.)
+add_compile_definitions(_POSIX_C_SOURCE=200112L)
+
 
 # ------------------------------------------------------------------------------
 # CMake Modules and Dependency Dependencies
@@ -110,6 +113,11 @@ endif ()
 # include deps/xx cmake
 include(deps/rapidjson)
 include(deps/libboundscheck)
+
+# OpenSSL: use source build when DOWNLOAD_DEPENDENCY=On, system OpenSSL otherwise
+if(DOWNLOAD_DEPENDENCY)
+    include(deps/openssl)
+endif()
 
 # ------------------------------------------------------------------------------
 # Project Configuration

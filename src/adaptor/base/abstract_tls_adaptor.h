@@ -15,10 +15,13 @@
 #define ABSTRACT_TLS_ADAPTOR_H
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "scf_def.h"
 #include "scf_errno.h"
 #include "constant_def.h"
+#include "scf_crypto_engine.h"
 
 namespace scf {
 enum class KeyUpdateType:int16_t {
@@ -130,6 +133,38 @@ public:
     virtual void FreeCert(void *cert) = 0;
 
     virtual int32_t X509VerifyChain(void *storeCtx) = 0;
+
+    // --- 密码引擎注入 (v2.0) ---
+
+    /**
+     * @brief 设置外部密码引擎
+     *
+     * 在 SSL_CTX 创建之前调用此方法，将硬件密码加速度引擎
+     * （如 KAEProviderEngine）注入到 TLS 适配器。
+     * 适配器将使用引擎提供的 OSSL_LIB_CTX 创建 SSL_CTX，
+     * 从而使 TLS 内部密码运算自动路由到硬件加速。
+     *
+     * @param engine 密码引擎实例（生命周期由调用方管理）
+     */
+    virtual void SetCryptoEngine(ICryptoEngine *engine) = 0;
+
+    /**
+     * @brief 获取当前密码引擎
+     */
+    virtual ICryptoEngine *GetCryptoEngine() const = 0;
+
+    /**
+     * @brief 设置密钥交换命名组 (TLS 1.3 groups)
+     *
+     * 配置 TLS 密钥协商使用的命名组，支持经典 ECDH 和后量子 Hybrid KEM。
+     * 调用时机: SSL_CTX 创建之后、连接建立之前。
+     *
+     * @param ctx 安全策略上下文 (包含 SSL_CTX)
+     * @param groups 命名组列表 (如 "X25519", "p256_kyber512", "P-521")
+     * @return SCF_SUCCESS 或错误码
+     */
+    virtual int32_t SetKeyExchangeGroups(
+        SCF_PolicyCtx *ctx, const std::vector<std::string> &groups) = 0;
 };
 }
 
