@@ -107,9 +107,18 @@ void SCF_FreePolicyCtx(SCF_PolicyCtx **ctx)
     if (!g_scfInitialized || g_adaptor == nullptr) {
         return;
     }
-    if ((*ctx)->refCnt > 1) {
-        (*ctx)->refCnt--;
-        *ctx = nullptr;
+
+    uint32_t expected = (*ctx)->refCnt.load();
+    while (expected > 0) {
+        if ((*ctx)->refCnt.compare_exchange_weak(expected, expected - 1)) {
+            break;
+        }
+    }
+    if (expected == 0) {
+        CCSEC_LOG_ERROR("|SCF_FreePolicyCtx|END|returnF||refCnt is already 0, potential double free");
+        return;
+    }
+    if (expected > 1) {
         return;
     }
 

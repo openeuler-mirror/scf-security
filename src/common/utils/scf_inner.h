@@ -14,6 +14,7 @@
 #ifndef SCF_INNER_H
 #define SCF_INNER_H
 
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <sys/time.h>
@@ -34,7 +35,7 @@ namespace scf {
     };
 
     struct SCFPolicyCtx {
-        uint32_t refCnt; // 引用计数。初始化为1，表示自身使用，每个obj+1
+        std::atomic<uint32_t> refCnt; // 引用计数。初始化为1，表示自身使用，每个obj+1
         void *sslConfig;
         SCF_POLICY_MODE policyMode;
         uint32_t verifyMode;

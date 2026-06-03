@@ -40,7 +40,7 @@ SCF_PolicyObj *SCF_CreatePolicyObj(SCF_PolicyCtx *ctx)
         return nullptr;
     }
     obj->policyCtx = ctx;
-    ctx->refCnt++;
+    ctx->refCnt.fetch_add(1);
 
     obj->policyMode = ctx->policyMode;
     obj->verifyMode = static_cast<SCF_VERIFY_MODE>(ctx->verifyMode);

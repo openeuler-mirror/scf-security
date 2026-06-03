@@ -1364,6 +1364,7 @@ void OpenSSLAdapter::FreeBuffer(char **buffer, size_t &bufferLen)
     if (buffer == nullptr || *buffer == nullptr || bufferLen == 0) {
         return;
     }
+    (void)memset_s(*buffer, bufferLen, 0, bufferLen);
     delete[] *buffer;
     *buffer = nullptr;
     bufferLen = 0;
