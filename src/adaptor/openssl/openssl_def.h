@@ -29,10 +29,16 @@ namespace scf {
 #define BIO void
 #define EVP_PKEY void
 #define EVP_MD void
+#define EVP_CIPHER void
+#define EVP_CIPHER_CTX void
+#define EVP_MD_CTX void
+#define EVP_PKEY_CTX void
 #define X509 void
 #define X509_CRL void
 #define X509_STORE void
 #define X509_STORE_CTX void
+#define EC_KEY void
+#define EC_GROUP void
 
 #define SSL_EX_DATA_ID 1
 
@@ -143,6 +149,19 @@ enum SslSecureLevel {
        As a result RSA, DSA and DH keys shorter than 15360 bits and ECC keys shorter than 512 bits are prohibited. */
     SSL_SECURITY_LEVEL_FIVE,
 };
+
+// default_crypto_engine 需要的 OpenSSL 常量
+#define NID_undef 0
+#define NID_X9_62_prime256v1 415
+#define NID_secp384r1 715
+#define NID_secp521r1 716
+#define EVP_PKEY_EC 408
+#define EVP_PKEY_HKDF 1036
+#define EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY 1
+#define EVP_PKEY_HKDEF_MODE_EXPAND_ONLY 2
+#define EVP_CTRL_AEAD_SET_IVLEN 0x9
+#define EVP_CTRL_AEAD_GET_TAG 0x10
+#define EVP_CTRL_AEAD_SET_TAG 0x11
 
 // 同步OpenSSL回调定义
 using SSLVerifyCallback = int (*)(int, X509_STORE_CTX *);

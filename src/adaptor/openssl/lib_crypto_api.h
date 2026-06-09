@@ -56,6 +56,56 @@ public:
     DlFun<char *, uint64_t, char *> ERR_error_string;
     DlFun<void, ERRPrintErrorsCallback, void *> ERR_print_errors_cb;
 
+    // EVP 对称加解密
+    DlFun<const void *> EVP_aes_128_gcm;
+    DlFun<const void *> EVP_aes_256_gcm;
+    DlFun<const void *> EVP_aes_128_ccm;
+    DlFun<const void *> EVP_chacha20_poly1305;
+    DlFun<void *> EVP_CIPHER_CTX_new;
+    DlFun<void, void *> EVP_CIPHER_CTX_free;
+    DlFun<int, void *, int, int, void *> EVP_CIPHER_CTX_ctrl;
+    DlFun<int, void *, const void *, void *, const void *, const void *> EVP_EncryptInit_ex;
+    DlFun<int, void *, const void *, int, const unsigned char *, int> EVP_EncryptUpdate;
+    DlFun<int, void *, unsigned char *, int *> EVP_EncryptFinal_ex;
+    DlFun<int, void *, const void *, void *, const void *, const void *> EVP_DecryptInit_ex;
+    DlFun<int, void *, const void *, int, const unsigned char *, int> EVP_DecryptUpdate;
+    DlFun<int, void *, unsigned char *, int *> EVP_DecryptFinal_ex;
+
+    // EVP 哈希
+    DlFun<const void *> EVP_sha512;
+    DlFun<void *> EVP_MD_CTX_new;
+    DlFun<void, void *> EVP_MD_CTX_free;
+    DlFun<int, void *, const void *, void *> EVP_DigestInit_ex;
+    DlFun<int, void *, const void *, size_t> EVP_DigestUpdate;
+    DlFun<int, void *, unsigned char *, unsigned int *> EVP_DigestFinal_ex;
+    DlFun<int, const void *> EVP_MD_get_size;
+
+    // HMAC
+    DlFun<unsigned char *, const void *, const void *, int, const unsigned char *, size_t, unsigned char *, unsigned int *> HMAC;
+
+    // EVP PKEY (非对称 + HKDF)
+    DlFun<void *> EVP_PKEY_new;
+    DlFun<void *, int, void *> EVP_PKEY_CTX_new_id;
+    DlFun<void *, void *, void *> EVP_PKEY_CTX_new;
+    DlFun<void, void *> EVP_PKEY_CTX_free;
+    DlFun<int, void *> EVP_PKEY_keygen_init;
+    DlFun<int, void *, void *> EVP_PKEY_keygen;
+    DlFun<int, void *, int> EVP_PKEY_CTX_set_ec_paramgen_curve_nid;
+    DlFun<int, void *> EVP_PKEY_derive_init;
+    DlFun<int, void *, void *> EVP_PKEY_derive_set_peer;
+    DlFun<int, void *, void *, size_t *> EVP_PKEY_derive;
+    DlFun<int, void *, const void *> EVP_PKEY_CTX_set_hkdf_md;
+    DlFun<int, void *, const void *, int> EVP_PKEY_CTX_set1_hkdf_salt;
+    DlFun<int, void *, const void *, int> EVP_PKEY_CTX_set1_hkdf_key;
+    DlFun<int, void *, int> EVP_PKEY_CTX_set_hkdf_mode;
+    DlFun<int, void *, const void *, int> EVP_PKEY_CTX_add1_hkdf_info;
+
+    // 编码
+    DlFun<void *, void *, const unsigned char **, long> d2i_PUBKEY;
+
+    // 随机数
+    DlFun<int, void *, int> RAND_bytes;
+
     // Provider API (OpenSSL 3.x+ only, via libcrypto.so)
     DlFun<uint64_t> OpenSSL_version_num;
     DlFun<void *> OSSL_LIB_CTX_new;
