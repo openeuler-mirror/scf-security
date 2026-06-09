@@ -74,7 +74,6 @@ macro(set_secure_flags)
         add_compiler_flags(-O2) # optimize level
 
         # security-related linker flags (must-have)
-        add_linker_flags(-pie) # pie
         add_linker_flags(-Wl,-z,relro,-z,now) # bind now
         add_linker_flags(-Wl,-z,noexecstack) # nx
         add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
@@ -136,7 +135,6 @@ macro(set_secure_flags)
         add_compiler_flags(-Wl,-z,relro,-z,now) # bind now
 
         # security-related linker flags (must-have)
-        add_linker_flags(-pie) # pie
         add_linker_flags(-s) # strip
         add_linker_flags(-Wl,-z,relro,-z,now) # bind now
         add_linker_flags(-Wl,-z,noexecstack) # nx

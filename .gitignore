@@ -10,3 +10,14 @@ src/common/rpc/rpcbuildfile/
 log
 cmake-build-debug
 test/temp_cert
+.claude
+AGENTS.md
+CLAUDE.md
+.understand-anything
+**/knowledge-base
+**/superpowers
+# Harness long-running agent framework
+harness-tasks.json
+harness-progress.txt
+harness-init.sh
+.harness-active
