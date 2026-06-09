@@ -80,6 +80,22 @@ uint32_t LibCryptoApi::LoadAll()
     ret |= CONNECTOR_SELF_DLSYM(ERR_get_error);
     ret |= CONNECTOR_SELF_DLSYM(ERR_error_string);
     ret |= CONNECTOR_SELF_DLSYM(ERR_print_errors_cb);
+
+    // OpenSSL version detection
+    ret |= CONNECTOR_SELF_DLSYM(OpenSSL_version_num);
+    if (ret == SCF_SUCCESS) {
+        versionNum_ = OpenSSL_version_num();
+    }
+
+    // Provider API (OpenSSL 3.x+ only, version-gated)
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        ret |= CONNECTOR_SELF_DLSYM(OSSL_LIB_CTX_new);
+        ret |= CONNECTOR_SELF_DLSYM(OSSL_LIB_CTX_free);
+        ret |= CONNECTOR_SELF_DLSYM(OSSL_PROVIDER_load);
+        ret |= CONNECTOR_SELF_DLSYM(OSSL_PROVIDER_unload);
+        ret |= CONNECTOR_SELF_DLSYM(ERR_error_string_n);
+    }
+
     if (ret != SCF_SUCCESS) {
         return SCF_ERRNO_LOAD_SYMBOL;
     }
@@ -109,5 +125,12 @@ void LibCryptoApi::UnLoadAll()
     ERR_get_error.Reset();
     ERR_error_string.Reset();
     ERR_print_errors_cb.Reset();
+    OpenSSL_version_num.Reset();
+    OSSL_LIB_CTX_new.Reset();
+    OSSL_LIB_CTX_free.Reset();
+    OSSL_PROVIDER_load.Reset();
+    OSSL_PROVIDER_unload.Reset();
+    ERR_error_string_n.Reset();
+    versionNum_ = 0;
 }
 }

@@ -56,10 +56,20 @@ public:
     DlFun<char *, uint64_t, char *> ERR_error_string;
     DlFun<void, ERRPrintErrorsCallback, void *> ERR_print_errors_cb;
 
+    // Provider API (OpenSSL 3.x+ only, via libcrypto.so)
+    DlFun<uint64_t> OpenSSL_version_num;
+    DlFun<void *> OSSL_LIB_CTX_new;
+    DlFun<void, void *> OSSL_LIB_CTX_free;
+    DlFun<void *, void *, const char *> OSSL_PROVIDER_load;
+    DlFun<int, void *> OSSL_PROVIDER_unload;
+    DlFun<void, uint64_t, char *, size_t> ERR_error_string_n;
+
 private:
     uint32_t LoadAll();
 
     void UnLoadAll();
+
+    uint64_t versionNum_ = 0;
 
     LibCryptoApi() = default;
 };
