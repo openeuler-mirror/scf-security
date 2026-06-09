@@ -61,16 +61,10 @@ target_link_libraries(
         Dependency::secure_c
 )
 
-# OpenSSL is needed by default_crypto_engine and kae_provider_engine (direct API calls),
-# and by openssl_adaptor (SSL_CTX_new_ex, SSL_CTX_set1_groups_list, etc. for Provider integration).
-# Use built OpenSSL when DOWNLOAD_DEPENDENCY is On, otherwise use system OpenSSL
-if(DOWNLOAD_DEPENDENCY)
-    # OpenSSL was built by cmake/deps/openssl.cmake, targets already defined
-    target_link_libraries(scf PUBLIC OpenSSL::SSL OpenSSL::Crypto)
-else()
-    find_package(OpenSSL REQUIRED)
-    target_link_libraries(scf PUBLIC OpenSSL::SSL OpenSSL::Crypto)
-endif()
+# default_crypto_engine.cpp 仍有编译时 OpenSSL 链接需求（EVP/HMAC/RAND/EC 等~88处直接API调用）。
+# 待后续将 default_crypto_engine 也改造为 dlopen 后，可移除以下链接。
+find_package(OpenSSL REQUIRED)
+target_link_libraries(scf PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 
 if (BUILD_FUZZ)
     target_link_libraries(scf PUBLIC Dependency::secodefuzz)
