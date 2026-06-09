@@ -108,6 +108,9 @@ uint32_t LibSslApi::LoadCtx()
 {
     uint32_t ret = SCF_SUCCESS;
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_new);
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_new_ex);
+    }
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_free);
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_load_verify_locations);
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_get_cert_store);
@@ -210,6 +213,7 @@ void LibSslApi::UnLoadCipherSuit()
 void LibSslApi::UnLoadCtx()
 {
     SSL_CTX_new.Reset();
+    SSL_CTX_new_ex.Reset();
     SSL_CTX_free.Reset();
     SSL_CTX_load_verify_locations.Reset();
     SSL_CTX_get_cert_store.Reset();

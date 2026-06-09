@@ -57,6 +57,7 @@ public:
     DlFun<uint32_t, const void *> SSL_CIPHER_get_id;
     /* 以下为上下文CTX处理接口 */
     DlFun<void *, const void *> SSL_CTX_new;
+    DlFun<void *, void *, const char *, const void *> SSL_CTX_new_ex;
     DlFun<void, void *> SSL_CTX_free;
     DlFun<int, void *, const char *, const char *> SSL_CTX_load_verify_locations;
     DlFun<void *, const void *> SSL_CTX_get_cert_store;
