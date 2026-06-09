@@ -35,7 +35,7 @@ function(setup_coverage)
                 COMMAND echo "lcov_excl_br_line = \"LCOV_EXCL_BR_LINE|RACK_LOG_*\"" >>
                 ${LCOV_CONFIG_FILE} # 排除 RACK 开头的宏日志计算到分支覆盖率
                 COMMAND
-                ${LCOV_PATH} --include '**/src/*'  --config-file ${LCOV_CONFIG_FILE} -d
+                ${LCOV_PATH} --ignore-errors mismatch --include '**/src/*'  --config-file ${LCOV_CONFIG_FILE} -d
                 ${CMAKE_BINARY_DIR}/src -c -o ${COVERAGE_DIR}/coverage.info
                 --gcov-tool=${GCOV_PATH} # 获取所有覆盖率信息
                 COMMAND

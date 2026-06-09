@@ -132,6 +132,7 @@ uint32_t LibSslApi::LoadCtx()
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_set_psk_use_session_callback);
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_get_ciphers);
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_ctrl);
+    (void)SelfDlSym("SSL_CTX_set1_groups_list", SSL_CTX_set1_groups_list);
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_set_default_passwd_cb);
     return ret;
 }
@@ -235,6 +236,7 @@ void LibSslApi::UnLoadCtx()
     SSL_CTX_set_psk_use_session_callback.Reset();
     SSL_CTX_get_ciphers.Reset();
     SSL_CTX_ctrl.Reset();
+    SSL_CTX_set1_groups_list.Reset();
     SSL_CTX_set_default_passwd_cb.Reset();
 }
 

@@ -79,6 +79,7 @@ public:
     DlFun<void, void *, SSLPskUseSessionCallback> SSL_CTX_set_psk_use_session_callback;
     DlFun<void *, const void *> SSL_CTX_get_ciphers;
     DlFun<int64_t, void *, int, int64_t, void *> SSL_CTX_ctrl;
+    DlFun<int64_t, void *, const char *> SSL_CTX_set1_groups_list;
     DlFun<void, void *, PemPasswordCallback *> SSL_CTX_set_default_passwd_cb;
     /* 以下为SSL对象处理接口 */
     DlFun<void *> SSL_SESSION_new;
