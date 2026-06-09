@@ -8,15 +8,10 @@
  */
 
 #include "scf_crypto_engine.h"
+#include "lib_crypto_api.h"
 #include "custom_logger.h"
 
 #include <cstring>
-#include <openssl/evp.h>
-#include <openssl/x509.h>
-#include <openssl/hmac.h>
-#include <openssl/rand.h>
-#include <openssl/kdf.h>
-#include <openssl/ec.h>
 
 namespace scf {
 
@@ -27,10 +22,10 @@ namespace scf {
 static const EVP_CIPHER *MapSymmetricAlgo(SymmetricAlgorithm algo)
 {
     switch (algo) {
-        case SymmetricAlgorithm::AES_128_GCM:      return EVP_aes_128_gcm();
-        case SymmetricAlgorithm::AES_256_GCM:      return EVP_aes_256_gcm();
-        case SymmetricAlgorithm::AES_128_CCM:      return EVP_aes_128_ccm();
-        case SymmetricAlgorithm::CHACHA20_POLY1305: return EVP_chacha20_poly1305();
+        case SymmetricAlgorithm::AES_128_GCM:      return LibCryptoApi::GetInstance().EVP_aes_128_gcm();
+        case SymmetricAlgorithm::AES_256_GCM:      return LibCryptoApi::GetInstance().EVP_aes_256_gcm();
+        case SymmetricAlgorithm::AES_128_CCM:      return LibCryptoApi::GetInstance().EVP_aes_128_ccm();
+        case SymmetricAlgorithm::CHACHA20_POLY1305: return LibCryptoApi::GetInstance().EVP_chacha20_poly1305();
         default: return nullptr;
     }
 }
@@ -38,9 +33,9 @@ static const EVP_CIPHER *MapSymmetricAlgo(SymmetricAlgorithm algo)
 static const EVP_MD *MapHashAlgo(HashAlgorithm algo)
 {
     switch (algo) {
-        case HashAlgorithm::SHA256: return EVP_sha256();
-        case HashAlgorithm::SHA384: return EVP_sha384();
-        case HashAlgorithm::SHA512: return EVP_sha512();
+        case HashAlgorithm::SHA256: return LibCryptoApi::GetInstance().EVP_sha256();
+        case HashAlgorithm::SHA384: return LibCryptoApi::GetInstance().EVP_sha384();
+        case HashAlgorithm::SHA512: return LibCryptoApi::GetInstance().EVP_sha512();
         default: return nullptr;
     }
 }
@@ -96,8 +91,8 @@ void DefaultSoftwareCryptoEngine::Finalize()
 CryptoEngineCapability DefaultSoftwareCryptoEngine::GetCapability() const
 {
     CryptoEngineCapability cap;
-    cap.engineName = "OpenSSL Software Engine";
-    cap.engineVersion = OPENSSL_VERSION_TEXT;
+    cap.engineName = "OpenSSL Software Engine (dlopen)";
+    cap.engineVersion = "via-dlopen";
     cap.hardwareVendor = "Software";
     cap.hardwareAccelerated = false;
     cap.supportsAsyncOperation = false;
@@ -145,33 +140,33 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
         return false;
     }
 
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX *ctx = LibCryptoApi::GetInstance().EVP_CIPHER_CTX_new();
     if (ctx == nullptr) return false;
 
     bool ok = false;
     do {
-        if (!EVP_EncryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr)) break;
-        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr)) break;
+        if (!LibCryptoApi::GetInstance().EVP_EncryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr)) break;
+        if (!LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr)) break;
 
-        if (!EVP_EncryptInit_ex(ctx, nullptr, nullptr, key, iv)) break;
+        if (!LibCryptoApi::GetInstance().EVP_EncryptInit_ex(ctx, nullptr, nullptr, key, iv)) break;
 
         int outLen = 0;
         if (aad != nullptr && aadLen > 0) {
-            if (!EVP_EncryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen))) break;
+            if (!LibCryptoApi::GetInstance().EVP_EncryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen))) break;
         }
 
-        if (!EVP_EncryptUpdate(ctx, ciphertext, &outLen, plaintext, static_cast<int>(plaintextLen))) break;
+        if (!LibCryptoApi::GetInstance().EVP_EncryptUpdate(ctx, ciphertext, &outLen, plaintext, static_cast<int>(plaintextLen))) break;
         *ciphertextLen = static_cast<size_t>(outLen);
 
-        if (!EVP_EncryptFinal_ex(ctx, ciphertext + outLen, &outLen)) break;
+        if (!LibCryptoApi::GetInstance().EVP_EncryptFinal_ex(ctx, ciphertext + outLen, &outLen)) break;
         *ciphertextLen += static_cast<size_t>(outLen);
 
-        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, static_cast<int>(tagLen), tag)) break;
+        if (!LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, static_cast<int>(tagLen), tag)) break;
 
         ok = true;
     } while (false);
 
-    EVP_CIPHER_CTX_free(ctx);
+    LibCryptoApi::GetInstance().EVP_CIPHER_CTX_free(ctx);
     return ok;
 }
 
@@ -188,35 +183,35 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
         return false;
     }
 
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX *ctx = LibCryptoApi::GetInstance().EVP_CIPHER_CTX_new();
     if (ctx == nullptr) return false;
 
     bool ok = false;
     do {
-        if (!EVP_DecryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr)) break;
-        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr)) break;
+        if (!LibCryptoApi::GetInstance().EVP_DecryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr)) break;
+        if (!LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr)) break;
 
-        if (!EVP_DecryptInit_ex(ctx, nullptr, nullptr, key, iv)) break;
+        if (!LibCryptoApi::GetInstance().EVP_DecryptInit_ex(ctx, nullptr, nullptr, key, iv)) break;
 
         int outLen = 0;
         if (aad != nullptr && aadLen > 0) {
-            if (!EVP_DecryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen))) break;
+            if (!LibCryptoApi::GetInstance().EVP_DecryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen))) break;
         }
 
-        if (!EVP_DecryptUpdate(ctx, plaintext, &outLen, ciphertext, static_cast<int>(ciphertextLen))) break;
+        if (!LibCryptoApi::GetInstance().EVP_DecryptUpdate(ctx, plaintext, &outLen, ciphertext, static_cast<int>(ciphertextLen))) break;
         *plaintextLen = static_cast<size_t>(outLen);
 
-        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, static_cast<int>(tagLen),
+        if (!LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, static_cast<int>(tagLen),
             const_cast<uint8_t *>(tag))) break;
 
         // Final 会验证 tag
-        if (EVP_DecryptFinal_ex(ctx, plaintext + outLen, &outLen) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_DecryptFinal_ex(ctx, plaintext + outLen, &outLen) <= 0) break;
         *plaintextLen += static_cast<size_t>(outLen);
 
         ok = true;
     } while (false);
 
-    EVP_CIPHER_CTX_free(ctx);
+    LibCryptoApi::GetInstance().EVP_CIPHER_CTX_free(ctx);
     return ok;
 }
 
@@ -227,54 +222,54 @@ bool DefaultSoftwareCryptoEngine::ECDHKeyAgreement(
     int nid = MapEcNid(algo);
     if (nid == NID_undef) return false;
 
-    EVP_PKEY *pkey = EVP_PKEY_new();
+    EVP_PKEY *pkey = LibCryptoApi::GetInstance().EVP_PKEY_new();
     EVP_PKEY_CTX *pctx = nullptr;
     EVP_PKEY *peerKey = nullptr;
     bool ok = false;
 
     do {
         // 生成本地密钥对
-        pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, nullptr);
+        pctx = LibCryptoApi::GetInstance().EVP_PKEY_CTX_new_id(EVP_PKEY_EC, nullptr);
         if (pctx == nullptr) break;
-        if (EVP_PKEY_keygen_init(pctx) <= 0) break;
-        if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, nid) <= 0) break;
-        if (EVP_PKEY_keygen(pctx, &pkey) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_keygen_init(pctx) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, nid) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_keygen(pctx, &pkey) <= 0) break;
 
         // 解析对端公钥
         const uint8_t *peerPtr = peerPublicKey;
-        peerKey = d2i_PUBKEY(nullptr, &peerPtr, static_cast<long>(peerPublicKeyLen));
+        peerKey = LibCryptoApi::GetInstance().d2i_PUBKEY(nullptr, &peerPtr, static_cast<long>(peerPublicKeyLen));
         if (peerKey == nullptr) break;
 
         // ECDH 派生共享密钥
-        EVP_PKEY_CTX *deriveCtx = EVP_PKEY_CTX_new(pkey, nullptr);
+        EVP_PKEY_CTX *deriveCtx = LibCryptoApi::GetInstance().EVP_PKEY_CTX_new(pkey, nullptr);
         if (deriveCtx == nullptr) break;
-        if (EVP_PKEY_derive_init(deriveCtx) <= 0) {
-            EVP_PKEY_CTX_free(deriveCtx);
+        if (LibCryptoApi::GetInstance().EVP_PKEY_derive_init(deriveCtx) <= 0) {
+            LibCryptoApi::GetInstance().EVP_PKEY_CTX_free(deriveCtx);
             break;
         }
-        if (EVP_PKEY_derive_set_peer(deriveCtx, peerKey) <= 0) {
-            EVP_PKEY_CTX_free(deriveCtx);
+        if (LibCryptoApi::GetInstance().EVP_PKEY_derive_set_peer(deriveCtx, peerKey) <= 0) {
+            LibCryptoApi::GetInstance().EVP_PKEY_CTX_free(deriveCtx);
             break;
         }
 
         size_t secretLen = 0;
-        if (EVP_PKEY_derive(deriveCtx, nullptr, &secretLen) <= 0) {
-            EVP_PKEY_CTX_free(deriveCtx);
+        if (LibCryptoApi::GetInstance().EVP_PKEY_derive(deriveCtx, nullptr, &secretLen) <= 0) {
+            LibCryptoApi::GetInstance().EVP_PKEY_CTX_free(deriveCtx);
             break;
         }
-        if (EVP_PKEY_derive(deriveCtx, sharedSecret, &secretLen) <= 0) {
-            EVP_PKEY_CTX_free(deriveCtx);
+        if (LibCryptoApi::GetInstance().EVP_PKEY_derive(deriveCtx, sharedSecret, &secretLen) <= 0) {
+            LibCryptoApi::GetInstance().EVP_PKEY_CTX_free(deriveCtx);
             break;
         }
         *sharedSecretLen = secretLen;
 
-        EVP_PKEY_CTX_free(deriveCtx);
+        LibCryptoApi::GetInstance().EVP_PKEY_CTX_free(deriveCtx);
         ok = true;
     } while (false);
 
-    if (pkey != nullptr) EVP_PKEY_free(pkey);
-    if (pctx != nullptr) EVP_PKEY_CTX_free(pctx);
-    if (peerKey != nullptr) EVP_PKEY_free(peerKey);
+    if (pkey != nullptr) LibCryptoApi::GetInstance().EVP_PKEY_free(pkey);
+    if (pctx != nullptr) LibCryptoApi::GetInstance().EVP_PKEY_CTX_free(pctx);
+    if (peerKey != nullptr) LibCryptoApi::GetInstance().EVP_PKEY_free(peerKey);
     return ok;
 }
 
@@ -314,18 +309,18 @@ bool DefaultSoftwareCryptoEngine::Hash(
     const EVP_MD *md = MapHashAlgo(algo);
     if (md == nullptr) return false;
 
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    EVP_MD_CTX *ctx = LibCryptoApi::GetInstance().EVP_MD_CTX_new();
     if (ctx == nullptr) return false;
 
     bool ok = true;
     unsigned int outLen = 0;
-    if (EVP_DigestInit_ex(ctx, md, nullptr) != 1 ||
-        EVP_DigestUpdate(ctx, data, dataLen) != 1 ||
-        EVP_DigestFinal_ex(ctx, digest, &outLen) != 1) {
+    if (LibCryptoApi::GetInstance().EVP_DigestInit_ex(ctx, md, nullptr) != 1 ||
+        LibCryptoApi::GetInstance().EVP_DigestUpdate(ctx, data, dataLen) != 1 ||
+        LibCryptoApi::GetInstance().EVP_DigestFinal_ex(ctx, digest, &outLen) != 1) {
         ok = false;
     }
     *digestLen = static_cast<size_t>(outLen);
-    EVP_MD_CTX_free(ctx);
+    LibCryptoApi::GetInstance().EVP_MD_CTX_free(ctx);
     return ok;
 }
 
@@ -337,7 +332,7 @@ bool DefaultSoftwareCryptoEngine::HMAC(
     if (md == nullptr) return false;
 
     unsigned int outLen = 0;
-    uint8_t *result = ::HMAC(md, key, static_cast<int>(keyLen), data, dataLen, mac, &outLen);
+    uint8_t *result = LibCryptoApi::GetInstance().HMAC(md, key, static_cast<int>(keyLen), data, dataLen, mac, &outLen);
     if (result == nullptr) return false;
     *macLen = static_cast<size_t>(outLen);
     return true;
@@ -350,24 +345,24 @@ bool DefaultSoftwareCryptoEngine::HKDFExtract(
     const EVP_MD *md = MapHashAlgo(algo);
     if (md == nullptr) return false;
 
-    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, nullptr);
+    EVP_PKEY_CTX *pctx = LibCryptoApi::GetInstance().EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, nullptr);
     if (pctx == nullptr) return false;
 
     bool ok = false;
     do {
-        if (EVP_PKEY_derive_init(pctx) <= 0) break;
-        if (EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0) break;
-        if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, static_cast<int>(saltLen)) <= 0) break;
-        if (EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm, static_cast<int>(ikmLen)) <= 0) break;
-        if (EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_derive_init(pctx) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, static_cast<int>(saltLen)) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm, static_cast<int>(ikmLen)) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) <= 0) break;
 
-        size_t outLen = EVP_MD_size(md);
-        if (EVP_PKEY_derive(pctx, prk, &outLen) <= 0) break;
+        size_t outLen = LibCryptoApi::GetInstance().EVP_MD_get_size(md);
+        if (LibCryptoApi::GetInstance().EVP_PKEY_derive(pctx, prk, &outLen) <= 0) break;
         *prkLen = outLen;
         ok = true;
     } while (false);
 
-    EVP_PKEY_CTX_free(pctx);
+    LibCryptoApi::GetInstance().EVP_PKEY_CTX_free(pctx);
     return ok;
 }
 
@@ -378,28 +373,28 @@ bool DefaultSoftwareCryptoEngine::HKDFExpand(
     const EVP_MD *md = MapHashAlgo(algo);
     if (md == nullptr) return false;
 
-    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, nullptr);
+    EVP_PKEY_CTX *pctx = LibCryptoApi::GetInstance().EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, nullptr);
     if (pctx == nullptr) return false;
 
     bool ok = false;
     do {
-        if (EVP_PKEY_derive_init(pctx) <= 0) break;
-        if (EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0) break;
-        if (EVP_PKEY_CTX_set1_hkdf_key(pctx, prk, static_cast<int>(prkLen)) <= 0) break;
-        if (EVP_PKEY_CTX_add1_hkdf_info(pctx, info, static_cast<int>(infoLen)) <= 0) break;
-        if (EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_derive_init(pctx) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_key(pctx, prk, static_cast<int>(prkLen)) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_add1_hkdf_info(pctx, info, static_cast<int>(infoLen)) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY) <= 0) break;
 
-        if (EVP_PKEY_derive(pctx, okm, &okmLen) <= 0) break;
+        if (LibCryptoApi::GetInstance().EVP_PKEY_derive(pctx, okm, &okmLen) <= 0) break;
         ok = true;
     } while (false);
 
-    EVP_PKEY_CTX_free(pctx);
+    LibCryptoApi::GetInstance().EVP_PKEY_CTX_free(pctx);
     return ok;
 }
 
 bool DefaultSoftwareCryptoEngine::RandomBytes(uint8_t *buffer, size_t len)
 {
-    return RAND_bytes(buffer, static_cast<int>(len)) == 1;
+    return LibCryptoApi::GetInstance().RAND_bytes(buffer, static_cast<int>(len)) == 1;
 }
 
 bool DefaultSoftwareCryptoEngine::ImportKey(

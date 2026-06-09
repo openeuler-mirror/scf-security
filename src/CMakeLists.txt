@@ -61,11 +61,7 @@ target_link_libraries(
         Dependency::secure_c
 )
 
-# default_crypto_engine.cpp 仍有编译时 OpenSSL 链接需求（EVP/HMAC/RAND/EC 等~88处直接API调用）。
-# 待后续将 default_crypto_engine 也改造为 dlopen 后，可移除以下链接。
-find_package(OpenSSL REQUIRED)
-target_link_libraries(scf PUBLIC OpenSSL::SSL OpenSSL::Crypto)
-
+# 所有 OpenSSL API 均已通过 dlopen 运行时加载，无需编译时链接。
 if (BUILD_FUZZ)
     target_link_libraries(scf PUBLIC Dependency::secodefuzz)
 endif ()
