@@ -121,7 +121,7 @@ int32_t OpenSSLAdapter::SetKeyExchangeGroups(
         groupsStr += groups[i];
     }
 
-    if (SSL_CTX_set1_groups_list(ctx->sslConfig, groupsStr.c_str()) != SSL_SUCCESS) {
+    if (SSL_CTX_set1_groups_list(ctx->sslConfig, const_cast<char*>(groupsStr.c_str())) != SSL_SUCCESS) {
         CCSEC_LOG_ERROR("OpenSSLAdapter: SSL_CTX_set1_groups_list failed for groups: "
             << groupsStr << ". Some groups may not be available (check PQ Provider).");
         // 不返回失败：某些组不可用是预期行为（如 PQ Provider 未加载时）
