@@ -95,153 +95,150 @@ struct SecurityLevelMapping {
     SCF_POLICY_MODE policyMode;
 };
 
-static SecurityLevelMapping GetSecurityLevelMapping(SCF_SECURITY_LEVEL level)
+static SecurityLevelMapping Make112bitMapping()
 {
     SecurityLevelMapping m;
+    m.securityStrengthBits = 112;
+    m.postQuantumResistant = false;
+    m.nistLevelLabel = "NIST-SP800-57-112bit";
+    m.protocolVersionMin = SCF_SSL_VERSION_TLS12;
+    m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
+    m.tls13CipherSuites = {
+        SCF_SSL_AES_128_GCM_SHA256,
+        SCF_SSL_AES_256_GCM_SHA384,
+    };
+    m.keyExchangeGroups = {
+        "X25519",
+        "P-256",
+    };
+    m.policyMode = SCF_POLICY_MIDDLE;
+    return m;
+}
 
+static SecurityLevelMapping Make128bitMapping()
+{
+    SecurityLevelMapping m;
+    m.securityStrengthBits = 128;
+    m.postQuantumResistant = false;
+    m.nistLevelLabel = "NIST-SP800-57-128bit";
+    m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
+    m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
+    m.tls13CipherSuites = {
+        SCF_SSL_AES_128_GCM_SHA256,
+        SCF_SSL_AES_256_GCM_SHA384,
+        SCF_SSL_CHACHA20_POLY1305_SHA256,
+    };
+    m.keyExchangeGroups = {
+        "X25519",
+        "P-256",
+    };
+    m.policyMode = SCF_POLICY_HIGH;
+    return m;
+}
+
+static SecurityLevelMapping Make192bitMapping()
+{
+    SecurityLevelMapping m;
+    m.securityStrengthBits = 192;
+    m.postQuantumResistant = false;
+    m.nistLevelLabel = "NIST-SP800-57-192bit";
+    m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
+    m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
+    m.tls13CipherSuites = {
+        SCF_SSL_AES_256_GCM_SHA384,
+        SCF_SSL_AES_128_GCM_SHA256,
+    };
+    m.keyExchangeGroups = {
+        "P-384",
+        "X25519",
+    };
+    m.policyMode = SCF_POLICY_HIGH;
+    return m;
+}
+
+static SecurityLevelMapping Make256bitMapping()
+{
+    SecurityLevelMapping m;
+    m.securityStrengthBits = 256;
+    m.postQuantumResistant = false;
+    m.nistLevelLabel = "NIST-SP800-57-256bit";
+    m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
+    m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
+    m.tls13CipherSuites = {
+        SCF_SSL_AES_256_GCM_SHA384,
+        SCF_SSL_AES_128_GCM_SHA256,
+    };
+    m.keyExchangeGroups = {
+        "P-521",
+        "P-384",
+        "X25519",
+    };
+    m.policyMode = SCF_POLICY_HIGH;
+    return m;
+}
+
+static SecurityLevelMapping Make128bitPQMapping()
+{
+    SecurityLevelMapping m;
+    m.securityStrengthBits = 128;
+    m.postQuantumResistant = true;
+    m.nistLevelLabel = "NIST-SP800-57-128bit-PQ";
+    m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
+    m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
+    m.tls13CipherSuites = {
+        SCF_SSL_AES_128_GCM_SHA256,
+        SCF_SSL_AES_256_GCM_SHA384,
+    };
+    m.keyExchangeGroups = {
+        SCF_NAMED_GROUP_X25519_KYBER512,
+        SCF_NAMED_GROUP_P256_KYBER512,
+        "x25519_kyber768",
+        "X25519",
+        "P-256",
+    };
+    m.policyMode = SCF_POLICY_HIGH;
+    return m;
+}
+
+static SecurityLevelMapping Make256bitPQMapping()
+{
+    SecurityLevelMapping m;
+    m.securityStrengthBits = 256;
+    m.postQuantumResistant = true;
+    m.nistLevelLabel = "NIST-SP800-57-256bit-PQ";
+    m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
+    m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
+    m.tls13CipherSuites = {
+        SCF_SSL_AES_256_GCM_SHA384,
+    };
+    m.keyExchangeGroups = {
+        SCF_NAMED_GROUP_P521_KYBER1024,
+        SCF_NAMED_GROUP_P521_MLKEM1024,
+        "p384_kyber768",
+        "P-521",
+        "P-384",
+    };
+    m.policyMode = SCF_POLICY_HIGH;
+    return m;
+}
+
+static SecurityLevelMapping GetSecurityLevelMapping(SCF_SECURITY_LEVEL level)
+{
     switch (level) {
-        // ============================================================
-        // 经典安全强度 (无抗量子保护)
-        // ============================================================
-
         case SCF_SECURITY_112BIT:
-            // NIST 最低可接受安全强度 (2030年前)
-            // 对标: 3DES / RSA-2048 / SHA-1 → 已弃用
-            // 实际使用 AES-128-GCM + ECDHE-P256 (高于112-bit保证)
-            m.securityStrengthBits = 112;
-            m.postQuantumResistant = false;
-            m.nistLevelLabel = "NIST-SP800-57-112bit";
-            m.protocolVersionMin = SCF_SSL_VERSION_TLS12;
-            m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
-            m.tls13CipherSuites = {
-                SCF_SSL_AES_128_GCM_SHA256,
-                SCF_SSL_AES_256_GCM_SHA384,
-            };
-            m.keyExchangeGroups = {
-                "X25519",
-                "P-256",
-            };
-            m.policyMode = SCF_POLICY_MIDDLE;
-            break;
-
+            return Make112bitMapping();
+        case SCF_SECURITY_192BIT:
+            return Make192bitMapping();
+        case SCF_SECURITY_256BIT:
+            return Make256bitMapping();
+        case SCF_SECURITY_128BIT_PQ:
+            return Make128bitPQMapping();
+        case SCF_SECURITY_256BIT_PQ:
+            return Make256bitPQMapping();
         case SCF_SECURITY_128BIT:
         default:
-            // NIST 推荐最低安全强度 (2030年后仍有效)
-            // 对标: AES-128 / ECDSA-P256 / SHA-256
-            // TLS 1.3 only, 128-bit 等效安全
-            m.securityStrengthBits = 128;
-            m.postQuantumResistant = false;
-            m.nistLevelLabel = "NIST-SP800-57-128bit";
-            m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
-            m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
-            m.tls13CipherSuites = {
-                SCF_SSL_AES_128_GCM_SHA256,
-                SCF_SSL_AES_256_GCM_SHA384,
-                SCF_SSL_CHACHA20_POLY1305_SHA256,
-            };
-            m.keyExchangeGroups = {
-                "X25519",              // ECDH Curve25519 (128-bit, NIST推荐)
-                "P-256",               // ECDH secp256r1 (128-bit)
-            };
-            m.policyMode = SCF_POLICY_HIGH;
-            break;
-
-        case SCF_SECURITY_192BIT:
-            // NIST 192-bit 安全强度
-            // 对标: AES-192 / ECDSA-P384 / SHA-384
-            m.securityStrengthBits = 192;
-            m.postQuantumResistant = false;
-            m.nistLevelLabel = "NIST-SP800-57-192bit";
-            m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
-            m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
-            m.tls13CipherSuites = {
-                SCF_SSL_AES_256_GCM_SHA384,      // AES-256 满足 192-bit
-                SCF_SSL_AES_128_GCM_SHA256,
-            };
-            m.keyExchangeGroups = {
-                "P-384",               // ECDH secp384r1 (192-bit)
-                "X25519",
-            };
-            m.policyMode = SCF_POLICY_HIGH;
-            break;
-
-        case SCF_SECURITY_256BIT:
-            // NIST 最高经典安全强度
-            // 对标: AES-256 / ECDSA-P521 / SHA-512
-            m.securityStrengthBits = 256;
-            m.postQuantumResistant = false;
-            m.nistLevelLabel = "NIST-SP800-57-256bit";
-            m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
-            m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
-            m.tls13CipherSuites = {
-                SCF_SSL_AES_256_GCM_SHA384,      // AES-256 满足 256-bit
-                SCF_SSL_AES_128_GCM_SHA256,
-            };
-            m.keyExchangeGroups = {
-                "P-521",               // ECDH secp521r1 (256-bit)
-                "P-384",
-                "X25519",
-            };
-            m.policyMode = SCF_POLICY_HIGH;
-            break;
-
-        // ============================================================
-        // 抗量子安全强度 (Hybrid ECDH + PQ KEM)
-        // ============================================================
-        // 混合密钥交换: 同时使用经典 ECDH 和后量子 KEM 进行两次密钥协商，
-        // 组合结果作为会话密钥材料。任何一个被攻破都不影响另一方的安全性。
-        //
-        // 依赖: OpenSSL 3.x + oqsprovider (liboqs)
-        // 运行时自动检测: 如果 PQ Provider 不可用，自动降级到对应经典级别
-
-        case SCF_SECURITY_128BIT_PQ:
-            // 128-bit 抗量子安全强度
-            // Hybrid: X25519 (128-bit 经典) + Kyber-512 (NIST PQC Level 1)
-            // NIST Level 1 等效于 AES-128 安全性
-            m.securityStrengthBits = 128;
-            m.postQuantumResistant = true;
-            m.nistLevelLabel = "NIST-SP800-57-128bit-PQ";
-            m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
-            m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
-            m.tls13CipherSuites = {
-                SCF_SSL_AES_128_GCM_SHA256,
-                SCF_SSL_AES_256_GCM_SHA384,
-            };
-            m.keyExchangeGroups = {
-                // 优先级: Hybrid PQ 组在前，经典组作为回退
-                SCF_NAMED_GROUP_X25519_KYBER512,   // Hybrid X25519 + Kyber-512
-                SCF_NAMED_GROUP_P256_KYBER512,     // Hybrid P-256 + Kyber-512
-                "x25519_kyber768",                  // Hybrid X25519 + Kyber-768 (更强)
-                "X25519",                           // 经典回退
-                "P-256",                            // 经典回退
-            };
-            m.policyMode = SCF_POLICY_HIGH;
-            break;
-
-        case SCF_SECURITY_256BIT_PQ:
-            // 256-bit 抗量子安全强度
-            // Hybrid: ECDH-P521 (256-bit 经典) + Kyber-1024 (NIST PQC Level 5)
-            // NIST Level 5 等效于 AES-256 安全性
-            m.securityStrengthBits = 256;
-            m.postQuantumResistant = true;
-            m.nistLevelLabel = "NIST-SP800-57-256bit-PQ";
-            m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
-            m.protocolVersionMax = SCF_SSL_VERSION_TLS13;
-            m.tls13CipherSuites = {
-                SCF_SSL_AES_256_GCM_SHA384,         // AES-256 满足 256-bit
-            };
-            m.keyExchangeGroups = {
-                // 优先级: 最高安全 Hybrid PQ 组
-                SCF_NAMED_GROUP_P521_KYBER1024,     // Hybrid P-521 + Kyber-1024
-                SCF_NAMED_GROUP_P521_MLKEM1024,     // Hybrid P-521 + ML-KEM-1024 (FIPS)
-                "p384_kyber768",                     // Hybrid P-384 + Kyber-768
-                "P-521",                             // 经典回退
-                "P-384",                             // 经典回退
-            };
-            m.policyMode = SCF_POLICY_HIGH;
-            break;
+            return Make128bitMapping();
     }
-    return m;
 }
 
 // ============================================================

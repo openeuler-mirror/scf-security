@@ -36,9 +36,6 @@
 #include <string>
 #include "scf_crypto_engine.h"
 
-using OSSL_LIB_CTX = struct ossl_lib_ctx_st;
-using OSSL_PROVIDER = struct ossl_provider_st;
-
 namespace scf {
 
 /**
@@ -158,6 +155,7 @@ public:
     std::string GetKAEVersion() const;
 
 private:
+    bool CreateLibraryContext();
     // 加载 KAE Provider
     bool LoadKAEProvider();
 
@@ -170,9 +168,9 @@ private:
     bool m_kaeLoaded;
 
     // OpenSSL 3.0+ Provider 句柄
-    OSSL_LIB_CTX *m_libCtx;        // OSSL_LIB_CTX*
-    OSSL_PROVIDER *m_defaultProv;   // OSSL_PROVIDER* (default provider)
-    OSSL_PROVIDER *m_kaeProv;       // OSSL_PROVIDER* (KAE provider)
+    void *m_libCtx;      // OSSL_LIB_CTX*
+    void *m_defaultProv; // OSSL_PROVIDER* (default provider)
+    void *m_kaeProv;     // OSSL_PROVIDER* (KAE provider)
 
     // 软件兜底引擎（用于直接 API 调用场景，TLS 数据路径不走这里）
     ICryptoEngine *m_fallbackEngine;

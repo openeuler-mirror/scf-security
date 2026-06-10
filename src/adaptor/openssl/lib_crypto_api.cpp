@@ -58,6 +58,16 @@ char *LibCryptoApi::ErrErrorString()
 
 uint32_t LibCryptoApi::LoadAll()
 {
+    uint32_t ret = LoadCoreSymbols();
+    ret |= LoadPkeySymbols();
+    if (ret != SCF_SUCCESS) {
+        return SCF_ERRNO_LOAD_SYMBOL;
+    }
+    return SCF_SUCCESS;
+}
+
+uint32_t LibCryptoApi::LoadCoreSymbols()
+{
     uint32_t ret = SCF_SUCCESS;
     ret |= CONNECTOR_SELF_DLSYM(OPENSSL_init_crypto);
     ret |= CONNECTOR_SELF_DLSYM(X509_STORE_add_cert);
@@ -80,8 +90,6 @@ uint32_t LibCryptoApi::LoadAll()
     ret |= CONNECTOR_SELF_DLSYM(ERR_get_error);
     ret |= CONNECTOR_SELF_DLSYM(ERR_error_string);
     ret |= CONNECTOR_SELF_DLSYM(ERR_print_errors_cb);
-
-    // EVP 对称加解密
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_128_gcm);
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_256_gcm);
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_128_ccm);
@@ -95,8 +103,6 @@ uint32_t LibCryptoApi::LoadAll()
     ret |= CONNECTOR_SELF_DLSYM(EVP_DecryptInit_ex);
     ret |= CONNECTOR_SELF_DLSYM(EVP_DecryptUpdate);
     ret |= CONNECTOR_SELF_DLSYM(EVP_DecryptFinal_ex);
-
-    // EVP 哈希
     ret |= CONNECTOR_SELF_DLSYM(EVP_sha512);
     ret |= CONNECTOR_SELF_DLSYM(EVP_MD_CTX_new);
     ret |= CONNECTOR_SELF_DLSYM(EVP_MD_CTX_free);
@@ -104,11 +110,13 @@ uint32_t LibCryptoApi::LoadAll()
     ret |= CONNECTOR_SELF_DLSYM(EVP_DigestUpdate);
     ret |= CONNECTOR_SELF_DLSYM(EVP_DigestFinal_ex);
     ret |= CONNECTOR_SELF_DLSYM(EVP_MD_get_size);
-
-    // HMAC
     ret |= CONNECTOR_SELF_DLSYM(HMAC);
+    return ret;
+}
 
-    // EVP PKEY
+uint32_t LibCryptoApi::LoadPkeySymbols()
+{
+    uint32_t ret = SCF_SUCCESS;
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_new);
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_new_id);
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_new);
@@ -124,18 +132,12 @@ uint32_t LibCryptoApi::LoadAll()
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_set1_hkdf_key);
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_set_hkdf_mode);
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_add1_hkdf_info);
-
-    // 编码 + 随机数
     ret |= CONNECTOR_SELF_DLSYM(d2i_PUBKEY);
     ret |= CONNECTOR_SELF_DLSYM(RAND_bytes);
-
-    // OpenSSL version detection
     ret |= CONNECTOR_SELF_DLSYM(OpenSSL_version_num);
     if (ret == SCF_SUCCESS) {
         versionNum_ = OpenSSL_version_num();
     }
-
-    // Provider API (OpenSSL 3.x+ only, version-gated)
     if (versionNum_ >= SSL_VERSION_3_X) {
         ret |= CONNECTOR_SELF_DLSYM(OSSL_LIB_CTX_new);
         ret |= CONNECTOR_SELF_DLSYM(OSSL_LIB_CTX_free);
@@ -143,14 +145,16 @@ uint32_t LibCryptoApi::LoadAll()
         ret |= CONNECTOR_SELF_DLSYM(OSSL_PROVIDER_unload);
         ret |= CONNECTOR_SELF_DLSYM(ERR_error_string_n);
     }
-
-    if (ret != SCF_SUCCESS) {
-        return SCF_ERRNO_LOAD_SYMBOL;
-    }
-    return SCF_SUCCESS;
+    return ret;
 }
 
 void LibCryptoApi::UnLoadAll()
+{
+    UnloadCoreSymbols();
+    UnloadPkeySymbols();
+}
+
+void LibCryptoApi::UnloadCoreSymbols()
 {
     OPENSSL_init_crypto.Reset();
     X509_STORE_add_cert.Reset();
@@ -194,6 +198,10 @@ void LibCryptoApi::UnLoadAll()
     EVP_DigestFinal_ex.Reset();
     EVP_MD_get_size.Reset();
     HMAC.Reset();
+}
+
+void LibCryptoApi::UnloadPkeySymbols()
+{
     EVP_PKEY_new.Reset();
     EVP_PKEY_CTX_new_id.Reset();
     EVP_PKEY_CTX_new.Reset();

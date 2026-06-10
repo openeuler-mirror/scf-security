@@ -72,6 +72,7 @@ namespace scf {
 #define SSL_CTRL_EXTRA_CHAIN_CERT      14
 #define SSL_CTRL_SET_SESS_CACHE_MODE   44
 #define SSL_CTRL_GET_SESS_CACHE_MODE   45
+#define SSL_CTRL_SET_GROUPS_LIST       92
 #define SSL_CTRL_SET_MIN_PROTO_VERSION 123
 #define SSL_CTRL_SET_MAX_PROTO_VERSION 124
 #define SSL_CTRL_GET_MIN_PROTO_VERSION 130
@@ -95,6 +96,8 @@ namespace scf {
     LibSslApi::GetInstance().SSL_CTX_ctrl(ctx, SSL_CTRL_SET_SESS_CACHE_MODE, m, nullptr)
 #define SSL_CTX_get_session_cache_mode(ctx) \
     LibSslApi::GetInstance().SSL_CTX_ctrl(ctx, SSL_CTRL_GET_SESS_CACHE_MODE, 0, nullptr)
+#define SSL_CTX_set1_groups_list(ctx, s) \
+    LibSslApi::GetInstance().SSL_CTX_ctrl(ctx, SSL_CTRL_SET_GROUPS_LIST, 0, (char *)(s))
 
 // 同步OpenSSL结构体定义
 #define SSL void

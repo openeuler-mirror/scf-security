@@ -121,17 +121,13 @@ int32_t OpenSSLAdapter::SetKeyExchangeGroups(
         groupsStr += groups[i];
     }
 
-    if (LibSslApi::GetInstance().SSL_CTX_set1_groups_list.Get()) {
-        int64_t ret = LibSslApi::GetInstance().SSL_CTX_set1_groups_list(ctx->sslConfig, groupsStr.c_str());
-        if (ret != 1) {
-            CCSEC_LOG_ERROR("OpenSSLAdapter: SSL_CTX_set1_groups_list failed for groups: "
-                << groupsStr << ". Some groups may not be available (check PQ Provider).");
-        } else {
-            CCSEC_LOG_INFO("OpenSSLAdapter: key exchange groups set: " << groupsStr);
-        }
+    if (SSL_CTX_set1_groups_list(ctx->sslConfig, const_cast<char*>(groupsStr.c_str())) != SSL_SUCCESS) {
+        CCSEC_LOG_ERROR("OpenSSLAdapter: SSL_CTX_set1_groups_list failed for groups: "
+            << groupsStr << ". Some groups may not be available (check PQ Provider).");
+        // 不返回失败：某些组不可用是预期行为（如 PQ Provider 未加载时）
+        // OpenSSL 会自动使用可用的组
     } else {
-        CCSEC_LOG_WARN("OpenSSLAdapter: SSL_CTX_set1_groups_list not available (OpenSSL version < 3.2?), "
-            << "key exchange groups not configured.");
+        CCSEC_LOG_INFO("OpenSSLAdapter: key exchange groups set: " << groupsStr);
     }
 
     return SCF_SUCCESS;
@@ -967,9 +963,8 @@ int32_t OpenSSLAdapter::SetProtocolVersion(SCF_PolicyCtx *ctx, uint32_t minVersi
     uint32_t *forbidVersion, uint32_t forbidVersionLen)
 {
     SSL_CTX *sslCtxConfig = ctx->sslConfig;
-    auto *realCtx = sslCtxConfig;
-    if (SSL_CTX_set_min_proto_version(realCtx, minVersion) != SSL_SUCCESS ||
-        SSL_CTX_set_max_proto_version(realCtx, maxVersion) != SSL_SUCCESS) {
+    if (SSL_CTX_set_min_proto_version(sslCtxConfig, minVersion) != SSL_SUCCESS ||
+        SSL_CTX_set_max_proto_version(sslCtxConfig, maxVersion) != SSL_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl Set Protocol Ver Fail.");
         return SCF_SSL_ERR_SET_PROTOCOL_VER;
     }
@@ -1068,8 +1063,7 @@ int32_t OpenSSLAdapter::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_
         void *providerCtx = m_cryptoEngine->GetProviderContext();
         if (providerCtx != nullptr) {
             // OpenSSL 3.0+ Provider 路径：使用硬件加速的 library context
-            sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new_ex(providerCtx, nullptr,
-                method);
+            sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new_ex(providerCtx, nullptr, method);
             if (sslCtxConfig != nullptr) {
                 CCSEC_LOG_INFO("OpenSSLAdapter: SSL_CTX created with hardware provider context."
                     << " Crypto engine: " << (m_cryptoEngine->IsHardwareAccelerated()
@@ -1095,9 +1089,8 @@ int32_t OpenSSLAdapter::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_
     LibSslApi::GetInstance().SSL_CTX_set_security_level(sslCtxConfig, SSL_SECURITY_LEVEL_TWO);
 
     // 防止会话恢复攻击
-    auto *realSslCtxConfig = sslCtxConfig;
-    (void)SSL_CTX_set_session_cache_mode(realSslCtxConfig, SSL_SESS_CACHE_OFF);
-    if (SSL_CTX_get_session_cache_mode(realSslCtxConfig) != SSL_SESS_CACHE_OFF) {
+    (void)SSL_CTX_set_session_cache_mode(sslCtxConfig, SSL_SESS_CACHE_OFF);
+    if (SSL_CTX_get_session_cache_mode(sslCtxConfig) != SSL_SESS_CACHE_OFF) {
         LibSslApi::GetInstance().SSL_CTX_free(sslCtxConfig);
         return SCF_SSL_ERR_SET_SESS_TICKET;
     }
@@ -1129,8 +1122,7 @@ int32_t OpenSSLAdapter::InitSslCustomer(SCF_PolicyCtx *ctx)
     if (m_cryptoEngine != nullptr) {
         void *providerCtx = m_cryptoEngine->GetProviderContext();
         if (providerCtx != nullptr) {
-            sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new_ex(providerCtx, nullptr,
-                method);
+            sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new_ex(providerCtx, nullptr, method);
         }
     }
 
@@ -1143,9 +1135,8 @@ int32_t OpenSSLAdapter::InitSslCustomer(SCF_PolicyCtx *ctx)
     }
 
     // 防止会话恢复攻击
-    auto *realSslCtxConfig = sslCtxConfig;
-    (void)SSL_CTX_set_session_cache_mode(realSslCtxConfig, SSL_SESS_CACHE_OFF);
-    if (SSL_CTX_get_session_cache_mode(realSslCtxConfig) != SSL_SESS_CACHE_OFF) {
+    (void)SSL_CTX_set_session_cache_mode(sslCtxConfig, SSL_SESS_CACHE_OFF);
+    if (SSL_CTX_get_session_cache_mode(sslCtxConfig) != SSL_SESS_CACHE_OFF) {
         LibSslApi::GetInstance().SSL_CTX_free(sslCtxConfig);
         sslCtxConfig = nullptr;
         return SCF_SSL_ERR_SET_SESS_TICKET;
@@ -1179,8 +1170,7 @@ int32_t OpenSSLAdapter::InitPolicyByMode(SCF_PolicyCtx *ctx)
 
 static int32_t PskFindSessionCbWrapper(void *ssl, const unsigned char *id, size_t idLen, void **sess)
 {
-    auto *obj = static_cast<SCF_PolicyObj *>(LibSslApi::GetInstance().SSL_get_ex_data(
-        ssl, SSL_EX_DATA_ID));
+    auto *obj = static_cast<SCF_PolicyObj *>(LibSslApi::GetInstance().SSL_get_ex_data(ssl, SSL_EX_DATA_ID));
     if (obj == nullptr || obj->pskFindSessionCb == nullptr) {
         return SSL_ERROR;
     }

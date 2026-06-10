@@ -14,8 +14,8 @@
 #ifndef LIB_SSL_API_H
 #define LIB_SSL_API_H
 
-#include "dlopen_lib_base.h"
 #include "openssl_def.h"
+#include "dlopen_lib_base.h"
 
 namespace scf {
 const std::string libSslName = "libssl.so";
@@ -133,6 +133,6 @@ private:
 
     void UnLoadStackOpt();
 };
-} // namespace scf
+}
 
 #endif // LIB_SSL_API_H

@@ -94,33 +94,22 @@ bool KAEProviderEngine::Initialize(const CryptoEngineConfig &config)
 
     // 创建独立的 OpenSSL Library Context
     // 这样 KAE Provider 只影响此 context 内的 SSL_CTX
-    // 确保 LibCryptoApi 已加载（KAE engine 可能独立于 SCF_Init 初始化）
-    auto &providerApi = LibCryptoApi::GetInstance();
-    if (!providerApi.ERR_get_error.Get()) {
-        // 尚未初始化，尝试默认路径加载 libcrypto.so
-        std::string defaultLibPath = "/usr/lib64";
-        if (providerApi.Init(defaultLibPath) != SCF_SUCCESS) {
-            CCSEC_LOG_WARN("KAEProviderEngine: LibCryptoApi init failed, software fallback.");
-            return false;
-        }
-    }
-    if (!providerApi.OSSL_LIB_CTX_new.Get()) {
-        CCSEC_LOG_WARN("KAEProviderEngine: Provider API not available (OpenSSL < 3.0?), "
+    if (!LibCryptoApi::GetInstance().OSSL_LIB_CTX_new.Get()) {
+        CCSEC_LOG_WARN("KAEProviderEngine: Provider API not available for current version, "
             << "falling back to software implementation.");
         return false;
     }
-    m_libCtx = static_cast<OSSL_LIB_CTX *>(providerApi.OSSL_LIB_CTX_new());
+    m_libCtx = LibCryptoApi::GetInstance().OSSL_LIB_CTX_new();
     if (m_libCtx == nullptr) {
         CCSEC_LOG_ERROR("KAEProviderEngine: OSSL_LIB_CTX_new failed");
         return false;
     }
 
     // 1. 加载 default Provider（必须，提供最基础的密码算法）
-    m_defaultProv = static_cast<OSSL_PROVIDER *>(providerApi.OSSL_PROVIDER_load(
-        static_cast<void *>(m_libCtx), "default"));
+    m_defaultProv = LibCryptoApi::GetInstance().OSSL_PROVIDER_load(m_libCtx, "default");
     if (m_defaultProv == nullptr) {
         CCSEC_LOG_ERROR("KAEProviderEngine: failed to load default provider");
-        providerApi.OSSL_LIB_CTX_free(m_libCtx);
+        LibCryptoApi::GetInstance().OSSL_LIB_CTX_free(m_libCtx);
         m_libCtx = nullptr;
         return false;
     }
@@ -145,18 +134,16 @@ bool KAEProviderEngine::Initialize(const CryptoEngineConfig &config)
 
 bool KAEProviderEngine::LoadKAEProvider()
 {
-    auto &providerApi = LibCryptoApi::GetInstance();
     std::string providerName = m_kaeConfig.kaeProviderName;
 
     // 尝试加载 KAE Provider
     // KAE provider 的 .so 文件通常在 /usr/lib64/ossl-modules/kae.so
-    m_kaeProv = static_cast<OSSL_PROVIDER *>(providerApi.OSSL_PROVIDER_load(
-        static_cast<void *>(m_libCtx), providerName.c_str()));
+    m_kaeProv = LibCryptoApi::GetInstance().OSSL_PROVIDER_load(m_libCtx, providerName.c_str());
     if (m_kaeProv == nullptr) {
         // 获取 OpenSSL 错误信息
-        uint64_t errCode = providerApi.ERR_get_error();
+        uint64_t errCode = LibCryptoApi::GetInstance().ERR_get_error();
         char errBuf[256] = {};
-        providerApi.ERR_error_string_n(errCode, errBuf, sizeof(errBuf));
+        LibCryptoApi::GetInstance().ERR_error_string_n(errCode, errBuf, sizeof(errBuf));
 
         CCSEC_LOG_WARN("KAEProviderEngine: failed to load KAE provider '" <<
             providerName << "': " << errBuf <<
@@ -179,26 +166,22 @@ void KAEProviderEngine::Finalize()
     }
 
     CCSEC_LOG_INFO("KAEProviderEngine finalizing...");
-    auto &providerApi = LibCryptoApi::GetInstance();
 
     // 释放 KAE Provider
     if (m_kaeProv != nullptr) {
-        (void)providerApi.OSSL_PROVIDER_unload(
-            static_cast<void *>(m_kaeProv));
+        (void)LibCryptoApi::GetInstance().OSSL_PROVIDER_unload(m_kaeProv);
         m_kaeProv = nullptr;
     }
 
     // 释放 default Provider
     if (m_defaultProv != nullptr) {
-        (void)providerApi.OSSL_PROVIDER_unload(
-            static_cast<void *>(m_defaultProv));
+        (void)LibCryptoApi::GetInstance().OSSL_PROVIDER_unload(m_defaultProv);
         m_defaultProv = nullptr;
     }
 
     // 释放 library context
     if (m_libCtx != nullptr) {
-        providerApi.OSSL_LIB_CTX_free(
-            static_cast<void *>(m_libCtx));
+        LibCryptoApi::GetInstance().OSSL_LIB_CTX_free(m_libCtx);
         m_libCtx = nullptr;
     }
 

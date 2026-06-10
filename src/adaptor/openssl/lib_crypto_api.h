@@ -81,7 +81,9 @@ public:
     DlFun<int, const void *> EVP_MD_get_size;
 
     // HMAC
-    DlFun<unsigned char *, const void *, const void *, int, const unsigned char *, size_t, unsigned char *, unsigned int *> HMAC;
+    DlFun<unsigned char *, const void *, const void *, int, const unsigned char *, size_t, unsigned char *,
+        unsigned int *>
+    HMAC;
 
     // EVP PKEY (非对称 + HKDF)
     DlFun<void *> EVP_PKEY_new;
@@ -116,10 +118,14 @@ public:
 
 private:
     uint32_t LoadAll();
+    uint32_t LoadCoreSymbols();
+    uint32_t LoadPkeySymbols();
 
     void UnLoadAll();
+    void UnloadCoreSymbols();
+    void UnloadPkeySymbols();
 
-    uint64_t versionNum_ = 0;
+    uint32_t versionNum_ = 0;
 
     LibCryptoApi() = default;
 };
