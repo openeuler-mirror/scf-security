@@ -14,8 +14,8 @@
 #ifndef LIB_SSL_API_H
 #define LIB_SSL_API_H
 
-#include "openssl_def.h"
 #include "dlopen_lib_base.h"
+#include "openssl_def.h"
 
 namespace scf {
 const std::string libSslName = "libssl.so";
@@ -33,7 +33,6 @@ public:
     void UnInit() override;
 
     DlFun<int, uint64_t, const void *> OPENSSL_init_ssl;
-    DlFun<const char *, int> OpenSSL_version;
     DlFun<uint64_t> OpenSSL_version_num;
     DlFun<void *, SSL *> SSL_new;
     DlFun<void, SSL *> SSL_free;
@@ -134,6 +133,6 @@ private:
 
     void UnLoadStackOpt();
 };
-}
+} // namespace scf
 
 #endif // LIB_SSL_API_H

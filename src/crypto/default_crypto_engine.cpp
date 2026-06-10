@@ -91,7 +91,7 @@ void DefaultSoftwareCryptoEngine::Finalize()
 CryptoEngineCapability DefaultSoftwareCryptoEngine::GetCapability() const
 {
     CryptoEngineCapability cap;
-    cap.engineName = "OpenSSL Software Engine (dlopen)";
+    cap.engineName = "OpenSSL Software Engine";
     cap.engineVersion = "via-dlopen";
     cap.hardwareVendor = "Software";
     cap.hardwareAccelerated = false;

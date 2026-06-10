@@ -102,7 +102,7 @@ TEST_F(CryptoEngineTest, GetCapability_ValidInfo)
 {
     scf::CryptoEngineCapability cap = engine->GetCapability();
 
-    EXPECT_EQ(cap.engineName, "OpenSSL Software Engine (dlopen)");
+    EXPECT_EQ(cap.engineName, "OpenSSL Software Engine");
     EXPECT_FALSE(cap.hardwareAccelerated);
     EXPECT_FALSE(cap.supportsAsyncOperation);
     EXPECT_FALSE(cap.supportsOffload);

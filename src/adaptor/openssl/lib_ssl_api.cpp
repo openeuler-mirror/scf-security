@@ -53,7 +53,6 @@ void LibSslApi::UnInit()
     SelfDlClose();
 }
 
-
 uint32_t LibSslApi::LoadAll()
 {
     uint32_t ret = SCF_SUCCESS;
@@ -270,4 +269,4 @@ void LibSslApi::UnLoadStackOpt()
     OPENSSL_sk_num.Reset();
     OPENSSL_sk_value.Reset();
 }
-}
+} // namespace scf
