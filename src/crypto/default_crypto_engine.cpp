@@ -503,7 +503,7 @@ bool DefaultSoftwareCryptoEngine::HKDFExpand(
 
 bool DefaultSoftwareCryptoEngine::RandomBytes(uint8_t *buffer, size_t len)
 {
-    return LibCryptoApi::GetInstance().RAND_bytes(buffer, static_cast<int>(len)) == 1;
+    return LibCryptoApi::GetInstance().RAND_bytes(buffer, static_cast<int>(len)) == SSL_SUCCESS;
 }
 
 bool DefaultSoftwareCryptoEngine::ImportKey(
