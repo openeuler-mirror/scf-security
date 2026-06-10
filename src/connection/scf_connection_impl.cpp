@@ -98,7 +98,7 @@ struct SecurityLevelMapping {
 static SecurityLevelMapping Make112bitMapping()
 {
     SecurityLevelMapping m;
-    m.securityStrengthBits = 112;
+    m.securityStrengthBits = 112; // 112 bit mapping
     m.postQuantumResistant = false;
     m.nistLevelLabel = "NIST-SP800-57-112bit";
     m.protocolVersionMin = SCF_SSL_VERSION_TLS12;
@@ -118,7 +118,7 @@ static SecurityLevelMapping Make112bitMapping()
 static SecurityLevelMapping Make128bitMapping()
 {
     SecurityLevelMapping m;
-    m.securityStrengthBits = 128;
+    m.securityStrengthBits = 128; // 128 bit mapping
     m.postQuantumResistant = false;
     m.nistLevelLabel = "NIST-SP800-57-128bit";
     m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
@@ -139,7 +139,7 @@ static SecurityLevelMapping Make128bitMapping()
 static SecurityLevelMapping Make192bitMapping()
 {
     SecurityLevelMapping m;
-    m.securityStrengthBits = 192;
+    m.securityStrengthBits = 192; // 192 bit mapping
     m.postQuantumResistant = false;
     m.nistLevelLabel = "NIST-SP800-57-192bit";
     m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
@@ -159,7 +159,7 @@ static SecurityLevelMapping Make192bitMapping()
 static SecurityLevelMapping Make256bitMapping()
 {
     SecurityLevelMapping m;
-    m.securityStrengthBits = 256;
+    m.securityStrengthBits = 256; // 256 bit mapping
     m.postQuantumResistant = false;
     m.nistLevelLabel = "NIST-SP800-57-256bit";
     m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
@@ -180,7 +180,7 @@ static SecurityLevelMapping Make256bitMapping()
 static SecurityLevelMapping Make128bitPQMapping()
 {
     SecurityLevelMapping m;
-    m.securityStrengthBits = 128;
+    m.securityStrengthBits = 128; // 128 bit pq mapping
     m.postQuantumResistant = true;
     m.nistLevelLabel = "NIST-SP800-57-128bit-PQ";
     m.protocolVersionMin = SCF_SSL_VERSION_TLS13;
@@ -203,7 +203,7 @@ static SecurityLevelMapping Make128bitPQMapping()
 static SecurityLevelMapping Make256bitPQMapping()
 {
     SecurityLevelMapping m;
-    m.securityStrengthBits = 256;
+    m.securityStrengthBits = 256; // 256 bit pq mapping
     m.postQuantumResistant = true;
     m.nistLevelLabel = "NIST-SP800-57-256bit-PQ";
     m.protocolVersionMin = SCF_SSL_VERSION_TLS13;

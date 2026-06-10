@@ -159,8 +159,8 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
         if (LibCryptoApi::GetInstance().EVP_EncryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen),
-                nullptr) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(
+                ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr) != SSL_SUCCESS) {
             break;
         }
 
@@ -170,14 +170,14 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
 
         int outLen = 0;
         if (aad != nullptr && aadLen > 0) {
-            if (LibCryptoApi::GetInstance().EVP_EncryptUpdate(ctx, nullptr, &outLen, aad,
-                    static_cast<int>(aadLen)) != SSL_SUCCESS) {
+            if (LibCryptoApi::GetInstance().EVP_EncryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen)) !=
+                SSL_SUCCESS) {
                 break;
             }
         }
 
-        if (LibCryptoApi::GetInstance().EVP_EncryptUpdate(ctx, ciphertext, &outLen, plaintext,
-                static_cast<int>(plaintextLen)) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_EncryptUpdate(
+                ctx, ciphertext, &outLen, plaintext, static_cast<int>(plaintextLen)) != SSL_SUCCESS) {
             break;
         }
         *ciphertextLen = static_cast<size_t>(outLen);
@@ -187,8 +187,8 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
         }
         *ciphertextLen += static_cast<size_t>(outLen);
 
-        if (LibCryptoApi::GetInstance().
-            EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, static_cast<int>(tagLen), tag) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, static_cast<int>(tagLen), tag)
+            != SSL_SUCCESS) {
             break;
         }
 
@@ -222,8 +222,8 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
         if (LibCryptoApi::GetInstance().EVP_DecryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen),
-                nullptr) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(
+                ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr) != SSL_SUCCESS) {
             break;
         }
 
@@ -233,20 +233,20 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
 
         int outLen = 0;
         if (aad != nullptr && aadLen > 0) {
-            if (LibCryptoApi::GetInstance().EVP_DecryptUpdate(ctx, nullptr, &outLen, aad,
-                    static_cast<int>(aadLen)) != SSL_SUCCESS) {
+            if (LibCryptoApi::GetInstance().EVP_DecryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen)) !=
+                SSL_SUCCESS) {
                 break;
             }
         }
 
-        if (LibCryptoApi::GetInstance().EVP_DecryptUpdate(ctx, plaintext, &outLen, ciphertext,
-                static_cast<int>(ciphertextLen)) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_DecryptUpdate(
+                ctx, plaintext, &outLen, ciphertext, static_cast<int>(ciphertextLen)) != SSL_SUCCESS) {
             break;
         }
         *plaintextLen = static_cast<size_t>(outLen);
 
-        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, static_cast<int>(tagLen),
-                const_cast<uint8_t *>(tag)) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(
+                ctx, EVP_CTRL_AEAD_SET_TAG, static_cast<int>(tagLen), const_cast<uint8_t *>(tag)) != SSL_SUCCESS) {
             break;
         }
 
@@ -292,9 +292,8 @@ static bool DeriveECDHSharedSecret(EVP_PKEY *pkey, EVP_PKEY *peerKey,
     return ok;
 }
 
-bool DefaultSoftwareCryptoEngine::ECDHKeyAgreement(
-    AsymmetricAlgorithm algo, const uint8_t *peerPublicKey, size_t peerPublicKeyLen,
-    uint8_t *sharedSecret, size_t *sharedSecretLen)
+bool DefaultSoftwareCryptoEngine::ECDHKeyAgreement(AsymmetricAlgorithm algo, const uint8_t *peerPublicKey,
+    size_t peerPublicKeyLen, uint8_t *sharedSecret, size_t *sharedSecretLen)
 {
     int nid = MapEcNid(algo);
     if (nid == NID_undef) {
@@ -345,9 +344,8 @@ bool DefaultSoftwareCryptoEngine::ECDHKeyAgreement(
     return ok;
 }
 
-bool DefaultSoftwareCryptoEngine::Sign(
-    AsymmetricAlgorithm algo, const CryptoKeyHandle &key,
-    const uint8_t *digest, size_t digestLen, uint8_t *signature, size_t *sigLen)
+bool DefaultSoftwareCryptoEngine::Sign(AsymmetricAlgorithm algo, const CryptoKeyHandle &key, const uint8_t *digest,
+    size_t digestLen, uint8_t *signature, size_t *sigLen)
 {
     // NOTE: requires EVP_PKEY recovery from key for signing
     (void)algo;
@@ -360,9 +358,8 @@ bool DefaultSoftwareCryptoEngine::Sign(
     return false;
 }
 
-bool DefaultSoftwareCryptoEngine::Verify(
-    AsymmetricAlgorithm algo, const CryptoKeyHandle &key,
-    const uint8_t *digest, size_t digestLen, const uint8_t *signature, size_t sigLen)
+bool DefaultSoftwareCryptoEngine::Verify(AsymmetricAlgorithm algo, const CryptoKeyHandle &key, const uint8_t *digest,
+    size_t digestLen, const uint8_t *signature, size_t sigLen)
 {
     (void)algo;
     (void)key;
@@ -375,8 +372,7 @@ bool DefaultSoftwareCryptoEngine::Verify(
 }
 
 bool DefaultSoftwareCryptoEngine::Hash(
-    HashAlgorithm algo, const uint8_t *data, size_t dataLen,
-    uint8_t *digest, size_t *digestLen)
+    HashAlgorithm algo, const uint8_t *data, size_t dataLen, uint8_t *digest, size_t *digestLen)
 {
     const EVP_MD *md = MapHashAlgo(algo);
     if (md == nullptr) {
@@ -400,9 +396,8 @@ bool DefaultSoftwareCryptoEngine::Hash(
     return ok;
 }
 
-bool DefaultSoftwareCryptoEngine::HMAC(
-    HashAlgorithm algo, const uint8_t *key, size_t keyLen,
-    const uint8_t *data, size_t dataLen, uint8_t *mac, size_t *macLen)
+bool DefaultSoftwareCryptoEngine::HMAC(HashAlgorithm algo, const uint8_t *key, size_t keyLen, const uint8_t *data,
+    size_t dataLen, uint8_t *mac, size_t *macLen)
 {
     const EVP_MD *md = MapHashAlgo(algo);
     if (md == nullptr) {
@@ -418,8 +413,7 @@ bool DefaultSoftwareCryptoEngine::HMAC(
     return true;
 }
 
-bool DefaultSoftwareCryptoEngine::HKDFExtract(
-    HashAlgorithm algo, const uint8_t *salt, size_t saltLen,
+bool DefaultSoftwareCryptoEngine::HKDFExtract(HashAlgorithm algo, const uint8_t *salt, size_t saltLen,
     const uint8_t *ikm, size_t ikmLen, uint8_t *prk, size_t *prkLen)
 {
     const EVP_MD *md = MapHashAlgo(algo);
@@ -440,16 +434,16 @@ bool DefaultSoftwareCryptoEngine::HKDFExtract(
         if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_md(pctx, md) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt,
-                static_cast<int>(saltLen)) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, static_cast<int>(saltLen)) !=
+            SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm,
-                static_cast<int>(ikmLen)) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm, static_cast<int>(ikmLen)) !=
+            SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_mode(pctx,
-                EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) !=
+            SSL_SUCCESS) {
             break;
         }
 

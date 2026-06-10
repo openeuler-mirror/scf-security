@@ -125,7 +125,7 @@ private:
     void UnloadCoreSymbols();
     void UnloadPkeySymbols();
 
-    uint32_t versionNum_ = 0;
+    uint64_t versionNum_ = 0;
 
     LibCryptoApi() = default;
 };
