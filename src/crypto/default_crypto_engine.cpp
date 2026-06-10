@@ -142,6 +142,7 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
     const uint8_t *aad, size_t aadLen,
     uint8_t *ciphertext, size_t *ciphertextLen, uint8_t *tag, size_t tagLen)
 {
+    auto &cryptoIns = LibCryptoApi::GetInstance();
     (void)keyLen;
     const EVP_CIPHER *cipher = MapSymmetricAlgo(algo);
     if (cipher == nullptr) {
@@ -149,53 +150,50 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
         return false;
     }
 
-    EVP_CIPHER_CTX *ctx = LibCryptoApi::GetInstance().EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX *ctx = cryptoIns.EVP_CIPHER_CTX_new();
     if (ctx == nullptr) {
         return false;
     }
 
     bool ok = false;
     do {
-        if (LibCryptoApi::GetInstance().EVP_EncryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS) {
+        if (cryptoIns.EVP_EncryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(
-                ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr) != SSL_SUCCESS) {
+        auto ret = cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr);
+        if (ret != SSL_SUCCESS) {
             break;
         }
 
-        if (LibCryptoApi::GetInstance().EVP_EncryptInit_ex(ctx, nullptr, nullptr, key, iv) != SSL_SUCCESS) {
+        if (cryptoIns.EVP_EncryptInit_ex(ctx, nullptr, nullptr, key, iv) != SSL_SUCCESS) {
             break;
         }
 
         int outLen = 0;
         if (aad != nullptr && aadLen > 0) {
-            if (LibCryptoApi::GetInstance().EVP_EncryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen)) !=
-                SSL_SUCCESS) {
+            if (cryptoIns.EVP_EncryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen)) != SSL_SUCCESS) {
                 break;
             }
         }
-
-        if (LibCryptoApi::GetInstance().EVP_EncryptUpdate(
-                ctx, ciphertext, &outLen, plaintext, static_cast<int>(plaintextLen)) != SSL_SUCCESS) {
+        ret = cryptoIns.EVP_EncryptUpdate(ctx, ciphertext, &outLen, plaintext, static_cast<int>(plaintextLen));
+        if (ret != SSL_SUCCESS) {
             break;
         }
         *ciphertextLen = static_cast<size_t>(outLen);
 
-        if (LibCryptoApi::GetInstance().EVP_EncryptFinal_ex(ctx, ciphertext + outLen, &outLen) != SSL_SUCCESS) {
+        if (cryptoIns.EVP_EncryptFinal_ex(ctx, ciphertext + outLen, &outLen) != SSL_SUCCESS) {
             break;
         }
         *ciphertextLen += static_cast<size_t>(outLen);
 
-        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, static_cast<int>(tagLen), tag)
-            != SSL_SUCCESS) {
+        if (cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, static_cast<int>(tagLen), tag) != SSL_SUCCESS) {
             break;
         }
 
         ok = true;
     } while (false);
 
-    LibCryptoApi::GetInstance().EVP_CIPHER_CTX_free(ctx);
+    cryptoIns.EVP_CIPHER_CTX_free(ctx);
     return ok;
 }
 
@@ -205,6 +203,7 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
     const uint8_t *aad, size_t aadLen, const uint8_t *tag, size_t tagLen,
     uint8_t *plaintext, size_t *plaintextLen)
 {
+    auto &cryptoIns = LibCryptoApi::GetInstance();
     (void)keyLen;
     const EVP_CIPHER *cipher = MapSymmetricAlgo(algo);
     if (cipher == nullptr) {
@@ -219,39 +218,37 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
 
     bool ok = false;
     do {
-        if (LibCryptoApi::GetInstance().EVP_DecryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS) {
+        if (cryptoIns.EVP_DecryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(
-                ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr) != SSL_SUCCESS) {
+        auto ret = cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr);
+        if (ret != SSL_SUCCESS) {
             break;
         }
 
-        if (LibCryptoApi::GetInstance().EVP_DecryptInit_ex(ctx, nullptr, nullptr, key, iv) != SSL_SUCCESS) {
+        if (cryptoIns.EVP_DecryptInit_ex(ctx, nullptr, nullptr, key, iv) != SSL_SUCCESS) {
             break;
         }
 
         int outLen = 0;
         if (aad != nullptr && aadLen > 0) {
-            if (LibCryptoApi::GetInstance().EVP_DecryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen)) !=
-                SSL_SUCCESS) {
+            if (cryptoIns.EVP_DecryptUpdate(ctx, nullptr, &outLen, aad, static_cast<int>(aadLen)) != SSL_SUCCESS) {
                 break;
             }
         }
-
-        if (LibCryptoApi::GetInstance().EVP_DecryptUpdate(
-                ctx, plaintext, &outLen, ciphertext, static_cast<int>(ciphertextLen)) != SSL_SUCCESS) {
+        ret = cryptoIns.EVP_DecryptUpdate(ctx, plaintext, &outLen, ciphertext, static_cast<int>(ciphertextLen));
+        if (ret != SSL_SUCCESS) {
             break;
         }
         *plaintextLen = static_cast<size_t>(outLen);
-
-        if (LibCryptoApi::GetInstance().EVP_CIPHER_CTX_ctrl(
-                ctx, EVP_CTRL_AEAD_SET_TAG, static_cast<int>(tagLen), const_cast<uint8_t *>(tag)) != SSL_SUCCESS) {
+        ret = cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, static_cast<int>(tagLen),
+            const_cast<uint8_t *>(tag));
+        if (ret != SSL_SUCCESS) {
             break;
         }
 
         // Final 会验证 tag
-        if (LibCryptoApi::GetInstance().EVP_DecryptFinal_ex(ctx, plaintext + outLen, &outLen) != SSL_SUCCESS) {
+        if (cryptoIns.EVP_DecryptFinal_ex(ctx, plaintext + outLen, &outLen) != SSL_SUCCESS) {
             break;
         }
         *plaintextLen += static_cast<size_t>(outLen);
@@ -259,7 +256,7 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
         ok = true;
     } while (false);
 
-    LibCryptoApi::GetInstance().EVP_CIPHER_CTX_free(ctx);
+    cryptoIns.EVP_CIPHER_CTX_free(ctx);
     return ok;
 }
 
@@ -323,7 +320,7 @@ bool DefaultSoftwareCryptoEngine::ECDHKeyAgreement(AsymmetricAlgorithm algo, con
 
         // 解析对端公钥
         const uint8_t *peerPtr = peerPublicKey;
-        peerKey = LibCryptoApi::GetInstance().d2i_PUBKEY(nullptr, &peerPtr, static_cast<long>(peerPublicKeyLen));
+        peerKey = LibCryptoApi::GetInstance().d2i_PUBKEY(nullptr, &peerPtr, static_cast<int64_t>(peerPublicKeyLen));
         if (peerKey == nullptr) {
             break;
         }
