@@ -65,10 +65,10 @@ public:
     DlFun<void, void *> EVP_CIPHER_CTX_free;
     DlFun<int, void *, int, int, void *> EVP_CIPHER_CTX_ctrl;
     DlFun<int, void *, const void *, void *, const void *, const void *> EVP_EncryptInit_ex;
-    DlFun<int, void *, const void *, int, const unsigned char *, int> EVP_EncryptUpdate;
+    DlFun<int, void *, const void *, int *, const unsigned char *, int> EVP_EncryptUpdate;
     DlFun<int, void *, unsigned char *, int *> EVP_EncryptFinal_ex;
     DlFun<int, void *, const void *, void *, const void *, const void *> EVP_DecryptInit_ex;
-    DlFun<int, void *, const void *, int, const unsigned char *, int> EVP_DecryptUpdate;
+    DlFun<int, void *, const void *, int *, const unsigned char *, int> EVP_DecryptUpdate;
     DlFun<int, void *, unsigned char *, int *> EVP_DecryptFinal_ex;
 
     // EVP 哈希
