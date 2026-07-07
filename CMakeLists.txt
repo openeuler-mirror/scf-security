@@ -114,11 +114,6 @@ endif ()
 include(deps/rapidjson)
 include(deps/libboundscheck)
 
-# OpenSSL: use source build when DOWNLOAD_DEPENDENCY=On, system OpenSSL otherwise
-if(DOWNLOAD_DEPENDENCY)
-    include(deps/openssl)
-endif()
-
 # ------------------------------------------------------------------------------
 # Project Configuration
 # ------------------------------------------------------------------------------

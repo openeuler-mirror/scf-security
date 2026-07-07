@@ -111,6 +111,7 @@ uint32_t LibCryptoApi::LoadCoreSymbols()
     ret |= CONNECTOR_SELF_DLSYM(EVP_DigestFinal_ex);
     ret |= CONNECTOR_SELF_DLSYM(EVP_MD_get_size);
     ret |= CONNECTOR_SELF_DLSYM(HMAC);
+    ret |= CONNECTOR_SELF_DLSYM(OpenSSL_version);
     return ret;
 }
 
@@ -198,6 +199,7 @@ void LibCryptoApi::UnloadCoreSymbols()
     EVP_DigestFinal_ex.Reset();
     EVP_MD_get_size.Reset();
     HMAC.Reset();
+    OpenSSL_version.Reset();
 }
 
 void LibCryptoApi::UnloadPkeySymbols()

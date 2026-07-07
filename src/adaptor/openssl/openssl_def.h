@@ -153,6 +153,9 @@ enum SslSecureLevel {
     SSL_SECURITY_LEVEL_FIVE,
 };
 
+// OpenSSL_version() 参数常量
+#define OPENSSL_VERSION 0
+
 // default_crypto_engine 需要的 OpenSSL 常量
 #define NID_undef 0
 #define NID_X9_62_prime256v1 415

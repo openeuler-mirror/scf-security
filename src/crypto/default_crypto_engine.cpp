@@ -101,7 +101,7 @@ CryptoEngineCapability DefaultSoftwareCryptoEngine::GetCapability() const
 {
     CryptoEngineCapability cap;
     cap.engineName = "OpenSSL Software Engine";
-    cap.engineVersion = "via-dlopen";
+    cap.engineVersion = LibCryptoApi::GetInstance().OpenSSL_version(OPENSSL_VERSION);
     cap.hardwareVendor = "Software";
     cap.hardwareAccelerated = false;
     cap.supportsAsyncOperation = false;

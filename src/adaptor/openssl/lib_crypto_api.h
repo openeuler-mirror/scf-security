@@ -110,6 +110,7 @@ public:
 
     // Provider API (OpenSSL 3.x+ only, via libcrypto.so)
     DlFun<uint64_t> OpenSSL_version_num;
+    DlFun<const char *, int> OpenSSL_version;
     DlFun<void *> OSSL_LIB_CTX_new;
     DlFun<void, void *> OSSL_LIB_CTX_free;
     DlFun<void *, void *, const char *> OSSL_PROVIDER_load;

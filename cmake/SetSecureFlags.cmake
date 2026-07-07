@@ -74,6 +74,8 @@ macro(set_secure_flags)
         add_compiler_flags(-O2) # optimize level
 
         # security-related linker flags (must-have)
+        # GCC 16 下会编译报错，需要注释，-pie是针对main函数的，scf是纯动态库，没有main函数
+        add_linker_flags(-pie) # pie
         add_linker_flags(-Wl,-z,relro,-z,now) # bind now
         add_linker_flags(-Wl,-z,noexecstack) # nx
         add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
@@ -135,6 +137,8 @@ macro(set_secure_flags)
         add_compiler_flags(-Wl,-z,relro,-z,now) # bind now
 
         # security-related linker flags (must-have)
+        # GCC 16 下会编译报错，需要注释，-pie是针对main函数的，scf是纯动态库，没有main函数
+        add_linker_flags(-pie) # pie
         add_linker_flags(-s) # strip
         add_linker_flags(-Wl,-z,relro,-z,now) # bind now
         add_linker_flags(-Wl,-z,noexecstack) # nx
