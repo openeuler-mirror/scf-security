@@ -41,7 +41,6 @@ constexpr uint32_t SHORT_MASK_LOW_8BITS = 0x00ff;
 constexpr uint32_t SHORT_MASK_HIGH_8BITS = 0xff00;
 constexpr const char *SCF_OID_NODE_ID = "1.3.6.1.4.1.11496.1.1"; // 节点 ID 的 UTF8String 证书扩展 OID
 constexpr const char *SCF_OID_RBAC_ROLE = "1.3.6.1.4.1.11496.1.2"; // RBAC 角色的 UTF8String 证书扩展 OID
-constexpr uint32_t MAX_NODE_ID_LEN = 128; // 节点 ID 最大缓冲区长度，包含结尾空字符
 constexpr uint32_t MAX_NODE_ROLE_MAP_SIZE = 4096; // 单个策略上下文允许的最大节点角色映射数
 }
 

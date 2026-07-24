@@ -28,6 +28,7 @@ namespace scf {
 #define SCF_CRYPT_MD_UNKNOWN 0
 #define SCF_CRYPT_MD_SHA256 10006
 #define SCF_CRYPT_MD_SHA384 10007
+#define MAX_NODE_ID_LEN 128
 
 /**
  * @ingroup  scf

@@ -94,6 +94,7 @@ SCF_PolicyCtx *SCF_CreatePolicyCtx(void)
     ctx->keyUpdateTime = DEFAULT_KEY_UPDATE_TIME;
     ctx->keyUpdateTraffic = DEFAULT_KEY_UPDATE_TRAFFIC;
     ctx->isNullVersion = false;
+    ctx->nodeRoleMap.clear();
     return ctx;
 }
 
