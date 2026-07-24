@@ -130,6 +130,7 @@ namespace scf {
 #define CHECK_SCF_INIT_RET(msg)                                                                          \
     do {                                                                                                   \
         if (!g_scfInitialized) {                                                                         \
+            CCSEC_LOG_ERROR("|" << (msg) << "|END|returnF||SCF is not initialized");                     \
             return SCF_ERRNO_NOT_INIT;                                                                   \
         }                                                                                                  \
     } while (0)
@@ -137,6 +138,7 @@ namespace scf {
 #define CHECK_SCF_INIT_POINTER(msg)                                                                      \
     do {                                                                                                   \
         if (!g_scfInitialized) {                                                                         \
+            CCSEC_LOG_ERROR("|" << (msg) << "|END|returnF||SCF is not initialized");                     \
             return nullptr;                                                                                \
         }                                                                                                  \
     } while (0)

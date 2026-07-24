@@ -59,9 +59,6 @@ int32_t SCF_GetCertNodeId(const void *cert, char *nodeIdBuffer, size_t bufferLen
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||buffer is too short");
         return SCF_SSL_ERR_PARSE_CERT;
     }
-    if (!g_scfInitialized) {
-        CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||SCF is not initialized");
-    }
     CHECK_SCF_INIT_RET("SCF_GetCertNodeId");
     CHECK_SCF_ADAPTOR_RET("SCF_GetCertNodeId");
     std::string nodeId;
@@ -93,9 +90,6 @@ int32_t SCF_GetCertRbacRole(const void *cert, SCF_RBAC_ROLE *role)
     if (cert == nullptr || role == nullptr) {
         CCSEC_LOG_ERROR("|SCF_GetCertRbacRole|END|returnF||null input");
         return SCF_ERRNO_NULL_INPUT;
-    }
-    if (!g_scfInitialized) {
-        CCSEC_LOG_ERROR("|SCF_GetCertRbacRole|END|returnF||SCF is not initialized");
     }
     CHECK_SCF_INIT_RET("SCF_GetCertRbacRole");
     CHECK_SCF_ADAPTOR_RET("SCF_GetCertRbacRole");
@@ -134,9 +128,6 @@ int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_
         CCSEC_LOG_ERROR("|SCF_SetNodeRoleMapping|END|returnF||invalid node id or role");
         return SCF_ERRNO_INVALID_PARAM;
     }
-    if (!g_scfInitialized) {
-        CCSEC_LOG_ERROR("|SCF_SetNodeRoleMapping|END|returnF||SCF is not initialized");
-    }
     CHECK_SCF_INIT_RET("SCF_SetNodeRoleMapping");
     std::lock_guard<std::mutex> lock(ctx->nodeRoleMapMutex);
     auto it = ctx->nodeRoleMap.find(nodeId);
@@ -159,9 +150,6 @@ int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId)
         CCSEC_LOG_ERROR("|SCF_RemoveNodeRoleMapping|END|returnF||invalid node id");
         return SCF_ERRNO_INVALID_PARAM;
     }
-    if (!g_scfInitialized) {
-        CCSEC_LOG_ERROR("|SCF_RemoveNodeRoleMapping|END|returnF||SCF is not initialized");
-    }
     CHECK_SCF_INIT_RET("SCF_RemoveNodeRoleMapping");
     std::lock_guard<std::mutex> lock(ctx->nodeRoleMapMutex);
     if (ctx->nodeRoleMap.erase(nodeId) == 0) {
@@ -178,9 +166,6 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
     if (ctx == nullptr || role == nullptr || src == nullptr) {
         CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||null input");
         return SCF_ERRNO_NULL_INPUT;
-    }
-    if (!g_scfInitialized) {
-        CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||SCF is not initialized");
     }
     CHECK_SCF_INIT_RET("SCF_GetNodeRbacRole");
     *role = SCF_RBAC_ROLE_UNKNOWN;
