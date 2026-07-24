@@ -93,6 +93,12 @@
         - [2.5.4 SCF_Close](#254-SCF_Close)
         - [2.5.5 SCF_Read](#255-SCF_Read)
         - [2.5.6 SCF_Write](#256-SCF_Write)
+    - [2.6 RBAC 节点身份与角色](#26-rbac-节点身份与角色)
+        - [2.6.1 SCF_GetCertNodeId](#261-SCF_GetCertNodeId)
+        - [2.6.2 SCF_GetCertRbacRole](#262-SCF_GetCertRbacRole)
+        - [2.6.3 SCF_SetNodeRoleMapping](#263-SCF_SetNodeRoleMapping)
+        - [2.6.4 SCF_RemoveNodeRoleMapping](#264-SCF_RemoveNodeRoleMapping)
+        - [2.6.5 SCF_GetNodeRbacRole](#265-SCF_GetNodeRbacRole)
 
 ## 1 数据结构
 
@@ -2148,3 +2154,110 @@ int32_t SCF_Write(SCF_PolicyObj *obj, const uint8_t *data, uint32_t dataLen, uin
 
 错误码，见[1.4 错误码](#14-错误码)
 <br/><code>SCF_SSL_ERR_WANT_WRITE</code>为合理错误场景，可以继续写入。
+
+### 2.6 RBAC 节点身份与角色
+
+本节接口用于从证书扩展或运行期映射表解析节点身份和 RBAC 角色。节点 ID 最大长度为
+`MAX_NODE_ID_LEN - 1` 个字符；角色映射仅保存在当前进程的策略上下文中。
+
+#### 2.6.1 SCF_GetCertNodeId
+
+##### 函数定义
+
+```c++
+int32_t SCF_GetCertNodeId(const void *cert, char *nodeIdBuffer, size_t bufferLen, size_t *nodeIdLen);
+```
+
+从证书的 NodeId 自定义扩展读取节点 ID。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| cert | [IN] | 是 | 证书句柄。 |
+| nodeIdBuffer | [OUT] | 是 | 节点 ID 输出缓冲区，长度至少为 2。 |
+| bufferLen | [IN] | 是 | 输出缓冲区长度。 |
+| nodeIdLen | [OUT] | 是 | 节点 ID 实际长度，不包含结尾空字符。 |
+
+##### 返回值
+
+成功返回 `SCF_SUCCESS`；证书不含 NodeId 扩展时返回 `SCF_ERRNO_CERT_NODE_ID_ABSENT`；扩展编码或缓冲区不合法时返回相应错误码。
+
+#### 2.6.2 SCF_GetCertRbacRole
+
+##### 函数定义
+
+```c++
+int32_t SCF_GetCertRbacRole(const void *cert, SCF_RBAC_ROLE *role);
+```
+
+从证书的 RBAC 角色自定义扩展读取角色。扩展值 `master` 和 `slave` 不区分大小写。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| cert | [IN] | 是 | 证书句柄。 |
+| role | [OUT] | 是 | 解析出的 `SCF_RBAC_ROLE_MASTER` 或 `SCF_RBAC_ROLE_SLAVE`。 |
+
+##### 返回值
+
+成功返回 `SCF_SUCCESS`；角色扩展缺失时返回 `SCF_ERRNO_CERT_ROLE_EXT_ABSENT`；扩展值或编码非法时返回相应错误码。
+
+#### 2.6.3 SCF_SetNodeRoleMapping
+
+##### 函数定义
+
+```c++
+int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_ROLE role);
+```
+
+新增或覆盖当前策略上下文中的节点 ID 到角色映射。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| nodeId | [IN] | 是 | 非空且以空字符结尾的节点 ID。 |
+| role | [IN] | 是 | `SCF_RBAC_ROLE_MASTER` 或 `SCF_RBAC_ROLE_SLAVE`。 |
+
+##### 返回值
+
+成功返回 `SCF_SUCCESS`；映射表达到 `MAX_NODE_ROLE_MAP_SIZE` 时返回 `SCF_ERRNO_RBAC_MAP_FULL`；参数非法时返回相应错误码。
+
+#### 2.6.4 SCF_RemoveNodeRoleMapping
+
+##### 函数定义
+
+```c++
+int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId);
+```
+
+删除当前策略上下文中的指定节点角色映射。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| nodeId | [IN] | 是 | 待删除的非空节点 ID。 |
+
+##### 返回值
+
+成功返回 `SCF_SUCCESS`；映射不存在时返回 `SCF_ERRNO_RBAC_MAP_NOT_FOUND`；参数非法时返回相应错误码。
+
+#### 2.6.5 SCF_GetNodeRbacRole
+
+##### 函数定义
+
+```c++
+int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *nodeId,
+    SCF_RBAC_ROLE *role, SCF_RBAC_ROLE_SOURCE *src);
+```
+
+解析节点角色。传入证书时优先使用证书角色；证书没有角色扩展时，使用证书中的 NodeId 查询映射表。未传入证书时，直接使用 `nodeId` 查询映射表。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| cert | [IN] | 否 | 可选证书句柄；非空时忽略 `nodeId`。 |
+| nodeId | [IN] | 条件必选 | `cert` 为空时用于映射表查询。 |
+| role | [OUT] | 是 | 解析出的节点角色。 |
+| src | [OUT] | 是 | 角色来源：证书、映射表或无来源。 |
+
+##### 返回值
+
+成功返回 `SCF_SUCCESS`；未能从证书和映射表获得角色时返回 `SCF_ERRNO_RBAC_ROLE_UNKNOWN`；证书扩展解析失败时返回相应错误码。
