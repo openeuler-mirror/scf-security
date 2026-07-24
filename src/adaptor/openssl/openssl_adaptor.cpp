@@ -1444,6 +1444,58 @@ uint8_t *OpenSSLAdapter::GetCertSerialNumber(const void *cert, uint32_t *dataLen
     return snString->data;
 }
 
+int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid, std::string &value)
+{
+    value.clear();
+    if (cert == nullptr || oid == nullptr) {
+        CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid invalid input");
+        return SCF_ERRNO_NULL_INPUT;
+    }
+    auto *object = LibCryptoApi::GetInstance().OBJ_txt2obj(oid, 1);
+    if (object == nullptr) {
+        CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid convert oid failed");
+        return SCF_SSL_ERR_PARSE_CERT;
+    }
+    int index = LibCryptoApi::GetInstance().X509_get_ext_by_OBJ(cert, object, -1);
+    LibCryptoApi::GetInstance().ASN1_OBJECT_free(object);
+    if (index < 0) {
+        CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension is absent");
+        return SCF_ERROR;
+    }
+    auto *extension = LibCryptoApi::GetInstance().X509_get_ext(cert, index);
+    if (extension == nullptr) {
+        CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid get extension failed");
+        return SCF_SSL_ERR_PARSE_CERT;
+    }
+    auto *data = LibCryptoApi::GetInstance().X509_EXTENSION_get_data(extension);
+    int dataLen = data == nullptr ? -1 : LibCryptoApi::GetInstance().ASN1_STRING_length(data);
+    const unsigned char *dataPtr = data == nullptr ? nullptr : LibCryptoApi::GetInstance().ASN1_STRING_get0_data(data);
+    if (dataPtr == nullptr || dataLen < 2 || dataPtr[0] != 0x0c) {
+        CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension data is invalid");
+        return SCF_SSL_ERR_PARSE_CERT;
+    }
+    size_t offset = 2;
+    size_t valueLen = 0;
+    if ((dataPtr[1] & 0x80U) == 0) {
+        valueLen = dataPtr[1];
+    } else {
+        uint8_t lengthBytes = dataPtr[1] & 0x7fU;
+        if (lengthBytes == 0 || lengthBytes > sizeof(size_t) || offset + lengthBytes > static_cast<size_t>(dataLen)) {
+            CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension length is invalid");
+            return SCF_SSL_ERR_PARSE_CERT;
+        }
+        for (uint8_t i = 0; i < lengthBytes; ++i) {
+            valueLen = (valueLen << 8U) | dataPtr[offset++];
+        }
+    }
+    if (offset + valueLen != static_cast<size_t>(dataLen)) {
+        CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension value length is invalid");
+        return SCF_SSL_ERR_PARSE_CERT;
+    }
+    value.assign(reinterpret_cast<const char *>(dataPtr + offset), valueLen);
+    return SCF_SUCCESS;
+}
+
 
 int32_t OpenSSLAdapter::GetCipherSuites(SCF_PolicyCtx *ctx, uint16_t *data, uint32_t dataLen,
     uint32_t *cipherSuitesSize)

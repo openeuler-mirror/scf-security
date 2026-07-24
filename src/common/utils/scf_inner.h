@@ -16,6 +16,7 @@
 
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <sys/time.h>
 #include "custom_logger.h"
 #include "scf_errno.h"
@@ -46,6 +47,8 @@ namespace scf {
         uint32_t keyUpdateTime;
         uint64_t keyUpdateTraffic;
         bool isNullVersion;
+        std::mutex nodeRoleMapMutex;
+        std::unordered_map<std::string, SCF_RBAC_ROLE> nodeRoleMap;
     };
 
     struct SCF_KEY_UPDATE_INFO {

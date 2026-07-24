@@ -256,6 +256,58 @@ uint8_t *SCF_GetCertSerialNumber(const void *cert, uint32_t *dataLen);
 
 /**
  * @ingroup scf
+ * @brief 从证书自定义扩展中获取节点身份标识。
+ * @param cert [IN] 证书指针。
+ * @param nodeIdBuffer [OUT] 节点 ID 输出缓冲区。
+ * @param bufferLen [IN] 输出缓冲区长度，至少为 2。
+ * @param nodeIdLen [OUT] 节点 ID 长度，不包含结尾空字符。
+ * @return SCF_SUCCESS、SCF_ERRNO_CERT_NODE_ID_ABSENT 或错误码。
+ */
+int32_t SCF_GetCertNodeId(const void *cert, char *nodeIdBuffer, size_t bufferLen, size_t *nodeIdLen);
+
+/**
+ * @ingroup scf
+ * @brief 从证书自定义扩展中获取 RBAC 角色。
+ * @param cert [IN] 证书指针。
+ * @param role [OUT] MASTER 或 SLAVE 角色。
+ * @return SCF_SUCCESS、SCF_ERRNO_CERT_ROLE_EXT_ABSENT 或错误码。
+ */
+int32_t SCF_GetCertRbacRole(const void *cert, SCF_RBAC_ROLE *role);
+
+/**
+ * @ingroup scf
+ * @brief 新增或覆盖节点 ID 到 RBAC 角色的内存映射。
+ * @param ctx [IN] 安全策略上下文。
+ * @param nodeId [IN] 以空字符结尾的节点 ID。
+ * @param role [IN] MASTER 或 SLAVE 角色。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_ROLE role);
+
+/**
+ * @ingroup scf
+ * @brief 从策略上下文中删除节点 ID 的角色映射。
+ * @param ctx [IN] 安全策略上下文。
+ * @param nodeId [IN] 待删除的节点 ID。
+ * @return SCF_SUCCESS、SCF_ERRNO_RBAC_MAP_NOT_FOUND 或错误码。
+ */
+int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId);
+
+/**
+ * @ingroup scf
+ * @brief 获取节点 RBAC 角色，证书角色优先于节点角色映射。
+ * @param ctx [IN] 安全策略上下文。
+ * @param cert [IN] 可选证书指针；非空时从证书获取节点 ID 和角色。
+ * @param nodeId [IN] cert 为空时用于查询映射的节点 ID。
+ * @param role [OUT] 解析出的角色。
+ * @param src [OUT] 角色来源。
+ * @return SCF_SUCCESS 或 SCF_ERRNO_RBAC_ROLE_UNKNOWN。
+ */
+int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *nodeId, SCF_RBAC_ROLE *role,
+    SCF_RBAC_ROLE_SOURCE *src);
+
+/**
+ * @ingroup scf
  * @brief  配置安全通信使用的算法套
  * @param  ctx [IN] 安全策略上下文
  * @param  cipherSuites [IN] 算法套数组

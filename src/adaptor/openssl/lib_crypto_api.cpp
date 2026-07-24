@@ -82,6 +82,13 @@ uint32_t LibCryptoApi::LoadCoreSymbols()
     ret |= CONNECTOR_SELF_DLSYM(X509_get0_serialNumber);
     ret |= CONNECTOR_SELF_DLSYM(X509_verify_cert);
     ret |= CONNECTOR_SELF_DLSYM(X509_STORE_CTX_get_error);
+    ret |= CONNECTOR_SELF_DLSYM(OBJ_txt2obj);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_OBJECT_free);
+    ret |= CONNECTOR_SELF_DLSYM(X509_get_ext_by_OBJ);
+    ret |= CONNECTOR_SELF_DLSYM(X509_get_ext);
+    ret |= CONNECTOR_SELF_DLSYM(X509_EXTENSION_get_data);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_STRING_get0_data);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_STRING_length);
     ret |= CONNECTOR_SELF_DLSYM(BIO_new_mem_buf);
     ret |= CONNECTOR_SELF_DLSYM(BIO_free);
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_free);
@@ -170,6 +177,13 @@ void LibCryptoApi::UnloadCoreSymbols()
     X509_get0_serialNumber.Reset();
     X509_verify_cert.Reset();
     X509_STORE_CTX_get_error.Reset();
+    OBJ_txt2obj.Reset();
+    ASN1_OBJECT_free.Reset();
+    X509_get_ext_by_OBJ.Reset();
+    X509_get_ext.Reset();
+    X509_EXTENSION_get_data.Reset();
+    ASN1_STRING_get0_data.Reset();
+    ASN1_STRING_length.Reset();
     BIO_new_mem_buf.Reset();
     BIO_free.Reset();
     EVP_PKEY_free.Reset();
