@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#include "securec.h"
 #include "custom_logger.h"
 
 namespace scf {
@@ -380,7 +381,16 @@ TransportResult SocketTransport::ResolveAddress(const TransportAddress &addr,
                 CCSEC_LOG_ERROR("getaddrinfo failed: " << gai << " for " << addr.host);
                 return TransportResult::ERROR;
             }
-            std::memcpy(sin, result->ai_addr, result->ai_addrlen);
+            if (result->ai_addrlen > sizeof(sockAddr)) {
+                CCSEC_LOG_ERROR("Address exceeds buffer: len=" << result->ai_addrlen << " max=" << sizeof(sockAddr));
+                freeaddrinfo(result);
+                return TransportResult::ERROR;
+            }
+            if (memcpy_s(&sockAddr, sizeof(sockAddr), result->ai_addr, result->ai_addrlen) != EOK) {
+                CCSEC_LOG_ERROR("memcpy_s failed for address copy");
+                freeaddrinfo(result);
+                return TransportResult::ERROR;
+            }
             freeaddrinfo(result);
         }
 
