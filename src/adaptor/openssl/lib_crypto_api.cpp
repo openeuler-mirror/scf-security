@@ -92,11 +92,19 @@ uint32_t LibCryptoApi::LoadCoreSymbols()
     ret |= CONNECTOR_SELF_DLSYM(BIO_new_mem_buf);
     ret |= CONNECTOR_SELF_DLSYM(BIO_free);
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_free);
-    ret |= CONNECTOR_SELF_DLSYM(EVP_sha256);
-    ret |= CONNECTOR_SELF_DLSYM(EVP_sha384);
     ret |= CONNECTOR_SELF_DLSYM(ERR_get_error);
     ret |= CONNECTOR_SELF_DLSYM(ERR_error_string);
     ret |= CONNECTOR_SELF_DLSYM(ERR_print_errors_cb);
+    ret |= LoadCryptoAlgorithmSymbols();
+    ret |= CONNECTOR_SELF_DLSYM(OpenSSL_version);
+    return ret;
+}
+
+uint32_t LibCryptoApi::LoadCryptoAlgorithmSymbols()
+{
+    uint32_t ret = SCF_SUCCESS;
+    ret |= CONNECTOR_SELF_DLSYM(EVP_sha256);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_sha384);
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_128_gcm);
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_256_gcm);
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_128_ccm);
@@ -118,7 +126,6 @@ uint32_t LibCryptoApi::LoadCoreSymbols()
     ret |= CONNECTOR_SELF_DLSYM(EVP_DigestFinal_ex);
     ret |= CONNECTOR_SELF_DLSYM(EVP_MD_get_size);
     ret |= CONNECTOR_SELF_DLSYM(HMAC);
-    ret |= CONNECTOR_SELF_DLSYM(OpenSSL_version);
     return ret;
 }
 

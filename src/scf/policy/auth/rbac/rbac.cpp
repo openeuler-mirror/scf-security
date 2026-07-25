@@ -20,6 +20,8 @@
 #include "string_util.h"
 
 namespace scf {
+constexpr size_t MIN_NODE_ID_BUFFER_LEN = 2;
+
 static bool IsValidNodeId(const char *nodeId)
 {
     if (nodeId == nullptr) {
@@ -60,13 +62,32 @@ static int32_t GetMappingRole(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_R
     return SCF_SUCCESS;
 }
 
+static int32_t GetCertRoleAndNodeId(const void *cert, SCF_RBAC_ROLE *certRole, std::string &mappingNodeId)
+{
+    int32_t roleRet = SCF_GetCertRbacRole(cert, certRole);
+    if (roleRet != SCF_SUCCESS && roleRet != SCF_ERRNO_CERT_ROLE_EXT_ABSENT) {
+        CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate role failed, ret:" << roleRet);
+        return roleRet;
+    }
+    char certNodeId[MAX_NODE_ID_LEN] = {0};
+    size_t certNodeIdLen = 0;
+    int32_t nodeIdRet = SCF_GetCertNodeId(cert, certNodeId, sizeof(certNodeId), &certNodeIdLen);
+    if (nodeIdRet == SCF_SUCCESS) {
+        mappingNodeId = certNodeId;
+    } else if (nodeIdRet != SCF_ERRNO_CERT_NODE_ID_ABSENT) {
+        CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate node id failed, ret:" << nodeIdRet);
+        return nodeIdRet;
+    }
+    return roleRet;
+}
+
 int32_t SCF_GetCertNodeId(const void *cert, char *nodeIdBuffer, size_t bufferLen, size_t *nodeIdLen)
 {
     if (cert == nullptr || nodeIdBuffer == nullptr || nodeIdLen == nullptr) {
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||null input");
         return SCF_ERRNO_NULL_INPUT;
     }
-    if (bufferLen < 2) {
+    if (bufferLen < MIN_NODE_ID_BUFFER_LEN) {
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||buffer is too short");
         return SCF_SSL_ERR_PARSE_CERT;
     }
@@ -189,24 +210,16 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
     CHECK_SCF_INIT_RET("SCF_GetNodeRbacRole");
     *role = SCF_RBAC_ROLE_UNKNOWN;
     *src = SCF_RBAC_ROLE_SRC_NONE;
+    std::string certNodeId;
     const char *mappingNodeId = cert == nullptr ? nodeId : nullptr;
     SCF_RBAC_ROLE certRole = SCF_RBAC_ROLE_UNKNOWN;
     if (cert != nullptr) {
         // 证书存在时忽略调用方传入的 nodeId，仅使用证书身份参与裁决。
-        int32_t certRoleRet = SCF_GetCertRbacRole(cert, &certRole);
+        int32_t certRoleRet = GetCertRoleAndNodeId(cert, &certRole, certNodeId);
         if (certRoleRet != SCF_SUCCESS && certRoleRet != SCF_ERRNO_CERT_ROLE_EXT_ABSENT) {
-            CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate role failed, ret:" << certRoleRet);
             return certRoleRet;
         }
-        char certNodeId[MAX_NODE_ID_LEN] = {0};
-        size_t certNodeIdLen = 0;
-        int32_t certNodeIdRet = SCF_GetCertNodeId(cert, certNodeId, sizeof(certNodeId), &certNodeIdLen);
-        if (certNodeIdRet == SCF_SUCCESS) {
-            mappingNodeId = certNodeId;
-        } else if (certNodeIdRet != SCF_ERRNO_CERT_NODE_ID_ABSENT) {
-            CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate node id failed, ret:" << certNodeIdRet);
-            return certNodeIdRet;
-        }
+        mappingNodeId = certNodeId.empty() ? nullptr : certNodeId.c_str();
         SCF_RBAC_ROLE mappingRole = SCF_RBAC_ROLE_UNKNOWN;
         int32_t mappingRet = GetMappingRole(ctx, mappingNodeId, &mappingRole);
         if (certRoleRet == SCF_SUCCESS) {

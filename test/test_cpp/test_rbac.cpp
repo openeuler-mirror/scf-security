@@ -27,6 +27,7 @@ void FreezeNodeRoleMapping(SCF_PolicyCtx *ctx);
 
 namespace test {
 constexpr size_t NODE_ID_BUFFER_SIZE = 128;
+constexpr uint32_t NODE_ROLE_MAP_CAPACITY = 4096;
 
 class TestRbac : public ::testing::Test {
 protected:
@@ -91,7 +92,7 @@ TEST_F(TestRbac, NodeRoleMappingRejectsInvalidInput)
     char unterminatedNodeId[NODE_ID_BUFFER_SIZE];
     char nodeId[2] = {0};
     size_t nodeIdLen = 0;
-    const void *cert = reinterpret_cast<const void *>(1);
+    char cert = 0;
     std::memset(unterminatedNodeId, 'a', sizeof(unterminatedNodeId));
     EXPECT_EQ(SCF_SetNodeRoleMapping(nullptr, "node-1", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, nullptr, SCF_RBAC_ROLE_MASTER), SCF_ERRNO_NULL_INPUT);
@@ -101,14 +102,14 @@ TEST_F(TestRbac, NodeRoleMappingRejectsInvalidInput)
     EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, nullptr), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, unterminatedNodeId), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_GetCertNodeId(nullptr, nullptr, 0, nullptr), SCF_ERRNO_NULL_INPUT);
-    EXPECT_EQ(SCF_GetCertNodeId(cert, nullptr, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_NULL_INPUT);
-    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), nullptr), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_GetCertNodeId(&cert, nullptr, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_GetCertNodeId(&cert, nodeId, sizeof(nodeId), nullptr), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetCertRbacRole(nullptr, nullptr), SCF_ERRNO_NULL_INPUT);
 }
 
 TEST_F(TestRbac, NodeRoleMappingRejectsEntriesBeyondCapacity)
 {
-    for (uint32_t i = 0; i < 4096; ++i) {
+    for (uint32_t i = 0; i < NODE_ROLE_MAP_CAPACITY; ++i) {
         std::string nodeId = "node-" + std::to_string(i);
         ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, nodeId.c_str(), SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
     }
@@ -147,9 +148,9 @@ TEST_F(TestRbac, NodeRoleMappingRequiresInitializedScf)
     size_t nodeIdLen = 0;
     SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
     SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
-    const void *cert = reinterpret_cast<const void *>(1);
-    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_NOT_INIT);
-    EXPECT_EQ(SCF_GetCertRbacRole(cert, &role), SCF_ERRNO_NOT_INIT);
+    char cert = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(&cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_NOT_INIT);
+    EXPECT_EQ(SCF_GetCertRbacRole(&cert, &role), SCF_ERRNO_NOT_INIT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", &role, &src), SCF_ERRNO_NOT_INIT);
     char libPath[] = "/usr/lib64";
     ASSERT_EQ(SCF_Init(SCF_INIT_FLAG_OPENSSL, libPath), SCF_SUCCESS);

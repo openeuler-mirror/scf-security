@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include "constant_def.h"
 #include "scf_errno.h"
 #include "scf_def.h"
 #include "scf_crypto_engine.h"
@@ -1471,11 +1472,11 @@ int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid,
     auto *data = LibCryptoApi::GetInstance().X509_EXTENSION_get_data(extension);
     int dataLen = data == nullptr ? -1 : LibCryptoApi::GetInstance().ASN1_STRING_length(data);
     const unsigned char *dataPtr = data == nullptr ? nullptr : LibCryptoApi::GetInstance().ASN1_STRING_get0_data(data);
-    if (dataPtr == nullptr || dataLen < 2 || dataPtr[0] != 0x0c) {
+    if (dataPtr == nullptr || dataLen < ASN1_TAG_AND_LENGTH_SIZE || dataPtr[0] != ASN1_UTF8_STRING_TAG) {
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension data is invalid");
         return SCF_SSL_ERR_PARSE_CERT;
     }
-    size_t offset = 2;
+    size_t offset = ASN1_TAG_AND_LENGTH_SIZE;
     size_t valueLen = 0;
     if ((dataPtr[1] & 0x80U) == 0) {
         valueLen = dataPtr[1];
@@ -1493,7 +1494,7 @@ int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid,
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension value length is invalid");
         return SCF_SSL_ERR_PARSE_CERT;
     }
-    value.assign(reinterpret_cast<const char *>(dataPtr + offset), valueLen);
+    value.assign(dataPtr + offset, dataPtr + offset + valueLen);
     return SCF_SUCCESS;
 }
 

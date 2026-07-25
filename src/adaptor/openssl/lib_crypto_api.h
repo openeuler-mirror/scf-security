@@ -127,6 +127,7 @@ public:
 private:
     uint32_t LoadAll();
     uint32_t LoadCoreSymbols();
+    uint32_t LoadCryptoAlgorithmSymbols();
     uint32_t LoadPkeySymbols();
 
     void UnLoadAll();
