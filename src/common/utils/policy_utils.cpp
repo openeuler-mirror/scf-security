@@ -39,6 +39,7 @@ std::map<int32_t, std::string> errorMap = {
     {SCF_ERRNO_SYSTEM_TIME_ERROR, "System time error"},
     {SCF_ERRNO_FILE_PATH_ERROR, "File path error"},
     {SCF_ERRNO_READ_FILE_ERROR, "Read file error"},
+    {SCF_ERRNO_RBAC_MAP_FROZEN, "RBAC node role mapping is frozen"},
     // CAL 模块
     {SCF_ERRNO_INIT_HITLS_BSL, "Init HiTLS bsl error"},
     {SCF_ERRNO_INIT_HITLS_CRYPTO, "Init HiTLS crypto error"},

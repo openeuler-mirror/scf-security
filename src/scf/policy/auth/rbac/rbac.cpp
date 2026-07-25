@@ -34,6 +34,17 @@ static bool IsValidRole(SCF_RBAC_ROLE role)
     return role == SCF_RBAC_ROLE_MASTER || role == SCF_RBAC_ROLE_SLAVE;
 }
 
+void FreezeNodeRoleMapping(SCF_PolicyCtx *ctx)
+{
+    if (ctx == nullptr) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(ctx->nodeRoleMapMutex);
+    if (!ctx->nodeRoleMapFrozen.exchange(true)) {
+        CCSEC_LOG_DEBUG("|FreezeNodeRoleMapping|END|returnS||node role mapping is frozen after connection established");
+    }
+}
+
 static int32_t GetMappingRole(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_ROLE *role)
 {
     if (!IsValidNodeId(nodeId)) {
@@ -130,6 +141,10 @@ int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_
     }
     CHECK_SCF_INIT_RET("SCF_SetNodeRoleMapping");
     std::lock_guard<std::mutex> lock(ctx->nodeRoleMapMutex);
+    if (ctx->nodeRoleMapFrozen.load()) {
+        CCSEC_LOG_ERROR("|SCF_SetNodeRoleMapping|END|returnF||node role mapping is frozen");
+        return SCF_ERRNO_RBAC_MAP_FROZEN;
+    }
     auto it = ctx->nodeRoleMap.find(nodeId);
     if (it == ctx->nodeRoleMap.end() && ctx->nodeRoleMap.size() >= MAX_NODE_ROLE_MAP_SIZE) {
         CCSEC_LOG_ERROR("|SCF_SetNodeRoleMapping|END|returnF||node role map is full");
@@ -152,6 +167,10 @@ int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId)
     }
     CHECK_SCF_INIT_RET("SCF_RemoveNodeRoleMapping");
     std::lock_guard<std::mutex> lock(ctx->nodeRoleMapMutex);
+    if (ctx->nodeRoleMapFrozen.load()) {
+        CCSEC_LOG_ERROR("|SCF_RemoveNodeRoleMapping|END|returnF||node role mapping is frozen");
+        return SCF_ERRNO_RBAC_MAP_FROZEN;
+    }
     if (ctx->nodeRoleMap.erase(nodeId) == 0) {
         CCSEC_LOG_ERROR("|SCF_RemoveNodeRoleMapping|END|returnF||node role mapping is absent");
         return SCF_ERRNO_RBAC_MAP_NOT_FOUND;

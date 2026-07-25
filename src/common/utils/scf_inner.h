@@ -14,6 +14,7 @@
 #ifndef SCF_INNER_H
 #define SCF_INNER_H
 
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -49,6 +50,7 @@ namespace scf {
         bool isNullVersion;
         std::mutex nodeRoleMapMutex;
         std::unordered_map<std::string, SCF_RBAC_ROLE> nodeRoleMap;
+        std::atomic_bool nodeRoleMapFrozen;
     };
 
     struct SCF_KEY_UPDATE_INFO {
@@ -110,6 +112,9 @@ namespace scf {
     int32_t Num2HexStr(const char *num, const uint32_t &numLen, char *hexStr, const uint32_t &hexStrLen);
 
     int32_t ReadFileContent(const std::string &path, std::string &content);
+
+    // 建链成功后冻结节点角色映射，避免运行期角色变更影响已建立连接。
+    void FreezeNodeRoleMapping(SCF_PolicyCtx *ctx);
 
 #define CHECK_SCF_ADAPTOR_RET(msg)                                                                       \
     do {                                                                                                   \

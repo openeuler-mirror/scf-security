@@ -21,6 +21,10 @@
 
 using namespace scf;
 
+namespace scf {
+void FreezeNodeRoleMapping(SCF_PolicyCtx *ctx);
+}
+
 namespace test {
 constexpr size_t NODE_ID_BUFFER_SIZE = 128;
 
@@ -109,6 +113,19 @@ TEST_F(TestRbac, NodeRoleMappingRejectsEntriesBeyondCapacity)
         ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, nodeId.c_str(), SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
     }
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-overflow", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_RBAC_MAP_FULL);
+}
+
+TEST_F(TestRbac, NodeRoleMappingIsFrozenAfterConnectionEstablished)
+{
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    scf::FreezeNodeRoleMapping(ctx_);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_SLAVE), SCF_ERRNO_RBAC_MAP_FROZEN);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-2", SCF_RBAC_ROLE_SLAVE), SCF_ERRNO_RBAC_MAP_FROZEN);
+    EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, "node-1"), SCF_ERRNO_RBAC_MAP_FROZEN);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", &role, &src), SCF_SUCCESS);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_MASTER);
 }
 
 TEST_F(TestRbac, NodeRoleMappingRequiresInitializedScf)

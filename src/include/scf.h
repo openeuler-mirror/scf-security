@@ -281,6 +281,7 @@ int32_t SCF_GetCertRbacRole(const void *cert, SCF_RBAC_ROLE *role);
  * @param nodeId [IN] 以空字符结尾的节点 ID。
  * @param role [IN] MASTER 或 SLAVE 角色。
  * @return SCF_SUCCESS 或错误码。
+ * @attention 任一使用该 ctx 的连接建链成功后，映射表被冻结，接口返回 SCF_ERRNO_RBAC_MAP_FROZEN。
  */
 int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_ROLE role);
 
@@ -290,6 +291,7 @@ int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_
  * @param ctx [IN] 安全策略上下文。
  * @param nodeId [IN] 待删除的节点 ID。
  * @return SCF_SUCCESS、SCF_ERRNO_RBAC_MAP_NOT_FOUND 或错误码。
+ * @attention 任一使用该 ctx 的连接建链成功后，映射表被冻结，接口返回 SCF_ERRNO_RBAC_MAP_FROZEN。
  */
 int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId);
 

@@ -2218,7 +2218,7 @@ int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_
 
 ##### 返回值
 
-成功返回 `SCF_SUCCESS`；映射表达到 `MAX_NODE_ROLE_MAP_SIZE` 时返回 `SCF_ERRNO_RBAC_MAP_FULL`；参数非法时返回相应错误码。
+成功返回 `SCF_SUCCESS`；映射表达到 `MAX_NODE_ROLE_MAP_SIZE` 时返回 `SCF_ERRNO_RBAC_MAP_FULL`；任一使用该上下文的连接建链成功后返回 `SCF_ERRNO_RBAC_MAP_FROZEN`；参数非法时返回相应错误码。
 
 #### 2.6.4 SCF_RemoveNodeRoleMapping
 
@@ -2237,7 +2237,7 @@ int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId);
 
 ##### 返回值
 
-成功返回 `SCF_SUCCESS`；映射不存在时返回 `SCF_ERRNO_RBAC_MAP_NOT_FOUND`；参数非法时返回相应错误码。
+成功返回 `SCF_SUCCESS`；映射不存在时返回 `SCF_ERRNO_RBAC_MAP_NOT_FOUND`；任一使用该上下文的连接建链成功后返回 `SCF_ERRNO_RBAC_MAP_FROZEN`；参数非法时返回相应错误码。
 
 #### 2.6.5 SCF_GetNodeRbacRole
 
