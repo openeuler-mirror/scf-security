@@ -128,6 +128,16 @@ TEST_F(TestRbac, NodeRoleMappingIsFrozenAfterConnectionEstablished)
     EXPECT_EQ(role, SCF_RBAC_ROLE_MASTER);
 }
 
+TEST_F(TestRbac, RbacSr01ErrorsHaveMessages)
+{
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_ROLE_UNKNOWN), "RBAC node role is unknown");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_MAP_FULL), "RBAC node role mapping is full");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_MAP_NOT_FOUND), "RBAC node role mapping is not found");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_CERT_NODE_ID_ABSENT), "RBAC certificate node ID extension is absent");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_CERT_ROLE_EXT_ABSENT), "RBAC certificate role extension is absent");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_MAP_FROZEN), "RBAC node role mapping is frozen");
+}
+
 TEST_F(TestRbac, NodeRoleMappingRequiresInitializedScf)
 {
     SCF_DeInit();
