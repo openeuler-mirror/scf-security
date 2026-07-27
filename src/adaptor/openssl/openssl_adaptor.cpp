@@ -1061,7 +1061,7 @@ int32_t OpenSSLAdapter::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_
     // 将由 OpenSSL 算法分发器自动路由到 KAE 硬件加速 Provider。
     if (m_cryptoEngine != nullptr) {
         void *providerCtx = m_cryptoEngine->GetProviderContext();
-        if (providerCtx != nullptr) {
+        if (providerCtx != nullptr && LibSslApi::GetInstance().SSL_CTX_new_ex.Get()) {
             // OpenSSL 3.0+ Provider 路径：使用硬件加速的 library context
             sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new_ex(providerCtx, nullptr, method);
             if (sslCtxConfig != nullptr) {
@@ -1121,7 +1121,7 @@ int32_t OpenSSLAdapter::InitSslCustomer(SCF_PolicyCtx *ctx)
     // v2.0: 硬件密码加速引擎集成（同 InitSsl 逻辑）
     if (m_cryptoEngine != nullptr) {
         void *providerCtx = m_cryptoEngine->GetProviderContext();
-        if (providerCtx != nullptr) {
+        if (providerCtx != nullptr && LibSslApi::GetInstance().SSL_CTX_new_ex.Get()) {
             sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new_ex(providerCtx, nullptr, method);
         }
     }

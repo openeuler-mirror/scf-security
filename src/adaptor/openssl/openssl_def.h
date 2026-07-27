@@ -169,6 +169,17 @@ enum SslSecureLevel {
 #define EVP_CTRL_AEAD_GET_TAG 0x10
 #define EVP_CTRL_AEAD_SET_TAG 0x11
 
+#define EVP_PKEY_OP_PARAMGEN (1U << 1U)
+#define EVP_PKEY_OP_KEYGEN (1U << 2U)
+// OpenSSL 1.1.1 和 3.x 的 EVP_PKEY_OP_DERIVE 取值不同，故保留版本后缀。
+#define EVP_PKEY_OP_DERIVE_1_1_1 (1U << 10U)
+#define EVP_PKEY_EC_PARAMGEN_CURVE_NID 0x1001
+#define EVP_PKEY_HKDF_MD 0x1003
+#define EVP_PKEY_HKDF_SALT 0x1004
+#define EVP_PKEY_HKDF_KEY 0x1005
+#define EVP_PKEY_HKDF_INFO 0x1006
+#define EVP_PKEY_HKDF_MODE 0x1007
+
 // 同步OpenSSL回调定义
 using SSLVerifyCallback = int (*)(int, X509_STORE_CTX *);
 

@@ -34,6 +34,18 @@ public:
 
     char *ErrErrorString();
 
+    int SetEcParamGenCurveNid(void *ctx, int nid);
+
+    int SetHkdfMd(void *ctx, const void *md);
+
+    int SetHkdfSalt(void *ctx, const void *salt, int saltLen);
+
+    int SetHkdfKey(void *ctx, const void *key, int keyLen);
+
+    int SetHkdfMode(void *ctx, int mode);
+
+    int AddHkdfInfo(void *ctx, const void *info, int infoLen);
+
     DlFun<int, uint64_t, const void *> OPENSSL_init_crypto;
     DlFun<int, void *, void *> X509_STORE_add_cert;
     DlFun<int, void *, void *> X509_STORE_add_crl;
@@ -96,6 +108,7 @@ public:
     DlFun<int, void *> EVP_PKEY_derive_init;
     DlFun<int, void *, void *> EVP_PKEY_derive_set_peer;
     DlFun<int, void *, void *, size_t *> EVP_PKEY_derive;
+    DlFun<int, void *, int, int, int, int, void *> EVP_PKEY_CTX_ctrl;
     DlFun<int, void *, const void *> EVP_PKEY_CTX_set_hkdf_md;
     DlFun<int, void *, const void *, int> EVP_PKEY_CTX_set1_hkdf_salt;
     DlFun<int, void *, const void *, int> EVP_PKEY_CTX_set1_hkdf_key;
