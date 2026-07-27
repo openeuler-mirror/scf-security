@@ -155,7 +155,6 @@ public:
     std::string GetKAEVersion() const;
 
 private:
-    bool CreateLibraryContext();
     // 加载 KAE Provider
     bool LoadKAEProvider();
 

@@ -311,7 +311,7 @@ bool DefaultSoftwareCryptoEngine::ECDHKeyAgreement(AsymmetricAlgorithm algo, con
         if (LibCryptoApi::GetInstance().EVP_PKEY_keygen_init(pctx) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, nid) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().SetEcParamGenCurveNid(pctx, nid) != SSL_SUCCESS) {
             break;
         }
         if (LibCryptoApi::GetInstance().EVP_PKEY_keygen(pctx, &pkey) != SSL_SUCCESS) {
@@ -428,23 +428,27 @@ bool DefaultSoftwareCryptoEngine::HKDFExtract(HashAlgorithm algo, const uint8_t 
         if (LibCryptoApi::GetInstance().EVP_PKEY_derive_init(pctx) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_md(pctx, md) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().SetHkdfMd(pctx, md) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, static_cast<int>(saltLen)) !=
+        if (LibCryptoApi::GetInstance().SetHkdfSalt(pctx, salt, static_cast<int>(saltLen)) !=
             SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm, static_cast<int>(ikmLen)) !=
+        if (LibCryptoApi::GetInstance().SetHkdfKey(pctx, ikm, static_cast<int>(ikmLen)) !=
             SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) !=
+        if (LibCryptoApi::GetInstance().SetHkdfMode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) !=
             SSL_SUCCESS) {
             break;
         }
 
-        size_t outLen = LibCryptoApi::GetInstance().EVP_MD_get_size(md);
+        int digestSize = LibCryptoApi::GetInstance().EVP_MD_get_size(md);
+        if (digestSize <= 0) {
+            break;
+        }
+        size_t outLen = static_cast<size_t>(digestSize);
         if (LibCryptoApi::GetInstance().EVP_PKEY_derive(pctx, prk, &outLen) != SSL_SUCCESS) {
             break;
         }
@@ -475,18 +479,18 @@ bool DefaultSoftwareCryptoEngine::HKDFExpand(
         if (LibCryptoApi::GetInstance().EVP_PKEY_derive_init(pctx) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_md(pctx, md) != SSL_SUCCESS) {
+        if (LibCryptoApi::GetInstance().SetHkdfMd(pctx, md) != SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set1_hkdf_key(pctx, prk, static_cast<int>(prkLen)) !=
+        if (LibCryptoApi::GetInstance().SetHkdfKey(pctx, prk, static_cast<int>(prkLen)) !=
             SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_add1_hkdf_info(pctx, info, static_cast<int>(infoLen)) !=
+        if (LibCryptoApi::GetInstance().AddHkdfInfo(pctx, info, static_cast<int>(infoLen)) !=
             SSL_SUCCESS) {
             break;
         }
-        if (LibCryptoApi::GetInstance().EVP_PKEY_CTX_set_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY) !=
+        if (LibCryptoApi::GetInstance().SetHkdfMode(pctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY) !=
             SSL_SUCCESS) {
             break;
         }
