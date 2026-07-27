@@ -37,11 +37,13 @@ uint32_t LibSslApi::Init(const std::string &libPath)
     ret = LoadAll();
     if (ret != SCF_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl Load lib:" << libSslName << " Symbol failed, ret:" << ret);
+        UnInit();
         return ret;
     }
     auto sslRet = OPENSSL_init_ssl(0, nullptr);
     if (sslRet != SSL_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl OPENSSL_init_ssl failed, ret:" << ret);
+        UnInit();
         return SCF_ERRNO_INIT_OPENSSL_CRYPTO;
     }
     return SCF_SUCCESS;
@@ -52,7 +54,6 @@ void LibSslApi::UnInit()
     UnLoadAll();
     SelfDlClose();
 }
-
 
 uint32_t LibSslApi::LoadAll()
 {
@@ -108,6 +109,9 @@ uint32_t LibSslApi::LoadCtx()
 {
     uint32_t ret = SCF_SUCCESS;
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_new);
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_new_ex);
+    }
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_free);
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_load_verify_locations);
     ret |= CONNECTOR_SELF_DLSYM(SSL_CTX_get_cert_store);
@@ -210,6 +214,7 @@ void LibSslApi::UnLoadCipherSuit()
 void LibSslApi::UnLoadCtx()
 {
     SSL_CTX_new.Reset();
+    SSL_CTX_new_ex.Reset();
     SSL_CTX_free.Reset();
     SSL_CTX_load_verify_locations.Reset();
     SSL_CTX_get_cert_store.Reset();

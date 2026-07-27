@@ -29,10 +29,16 @@ namespace scf {
 #define BIO void
 #define EVP_PKEY void
 #define EVP_MD void
+#define EVP_CIPHER void
+#define EVP_CIPHER_CTX void
+#define EVP_MD_CTX void
+#define EVP_PKEY_CTX void
 #define X509 void
 #define X509_CRL void
 #define X509_STORE void
 #define X509_STORE_CTX void
+#define EC_KEY void
+#define EC_GROUP void
 
 #define SSL_EX_DATA_ID 1
 
@@ -66,6 +72,7 @@ namespace scf {
 #define SSL_CTRL_EXTRA_CHAIN_CERT      14
 #define SSL_CTRL_SET_SESS_CACHE_MODE   44
 #define SSL_CTRL_GET_SESS_CACHE_MODE   45
+#define SSL_CTRL_SET_GROUPS_LIST       92
 #define SSL_CTRL_SET_MIN_PROTO_VERSION 123
 #define SSL_CTRL_SET_MAX_PROTO_VERSION 124
 #define SSL_CTRL_GET_MIN_PROTO_VERSION 130
@@ -89,6 +96,8 @@ namespace scf {
     LibSslApi::GetInstance().SSL_CTX_ctrl(ctx, SSL_CTRL_SET_SESS_CACHE_MODE, m, nullptr)
 #define SSL_CTX_get_session_cache_mode(ctx) \
     LibSslApi::GetInstance().SSL_CTX_ctrl(ctx, SSL_CTRL_GET_SESS_CACHE_MODE, 0, nullptr)
+#define SSL_CTX_set1_groups_list(ctx, s) \
+    LibSslApi::GetInstance().SSL_CTX_ctrl(ctx, SSL_CTRL_SET_GROUPS_LIST, 0, (char *)(s))
 
 // 同步OpenSSL结构体定义
 #define SSL void
@@ -143,6 +152,33 @@ enum SslSecureLevel {
        As a result RSA, DSA and DH keys shorter than 15360 bits and ECC keys shorter than 512 bits are prohibited. */
     SSL_SECURITY_LEVEL_FIVE,
 };
+
+// OpenSSL_version() 参数常量
+#define OPENSSL_VERSION 0
+
+// default_crypto_engine 需要的 OpenSSL 常量
+#define NID_undef 0
+#define NID_X9_62_prime256v1 415
+#define NID_secp384r1 715
+#define NID_secp521r1 716
+#define EVP_PKEY_EC 408
+#define EVP_PKEY_HKDF 1036
+#define EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY 1
+#define EVP_PKEY_HKDEF_MODE_EXPAND_ONLY 2
+#define EVP_CTRL_AEAD_SET_IVLEN 0x9
+#define EVP_CTRL_AEAD_GET_TAG 0x10
+#define EVP_CTRL_AEAD_SET_TAG 0x11
+
+#define EVP_PKEY_OP_PARAMGEN (1U << 1U)
+#define EVP_PKEY_OP_KEYGEN (1U << 2U)
+// OpenSSL 1.1.1 和 3.x 的 EVP_PKEY_OP_DERIVE 取值不同，故保留版本后缀。
+#define EVP_PKEY_OP_DERIVE_1_1_1 (1U << 10U)
+#define EVP_PKEY_EC_PARAMGEN_CURVE_NID 0x1001
+#define EVP_PKEY_HKDF_MD 0x1003
+#define EVP_PKEY_HKDF_SALT 0x1004
+#define EVP_PKEY_HKDF_KEY 0x1005
+#define EVP_PKEY_HKDF_INFO 0x1006
+#define EVP_PKEY_HKDF_MODE 0x1007
 
 // 同步OpenSSL回调定义
 using SSLVerifyCallback = int (*)(int, X509_STORE_CTX *);

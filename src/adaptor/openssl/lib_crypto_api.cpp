@@ -34,11 +34,13 @@ uint32_t LibCryptoApi::Init(const std::string &libPath)
     ret = LoadAll();
     if (ret != SCF_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl Load lib:" << libCryptoName << " Symbol failed, ret:" << ret);
+        UnInit();
         return ret;
     }
     auto sslRet = OPENSSL_init_crypto(0, nullptr);
     if (sslRet != SSL_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl OPENSSL_init_crypto failed, ret:" << ret);
+        UnInit();
         return SCF_ERRNO_INIT_OPENSSL_CRYPTO;
     }
     return SCF_SUCCESS;
@@ -56,7 +58,75 @@ char *LibCryptoApi::ErrErrorString()
     return ERR_error_string(errorCode, nullptr);
 }
 
+int LibCryptoApi::SetEcParamGenCurveNid(void *ctx, int nid)
+{
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        return EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, nid);
+    }
+    return EVP_PKEY_CTX_ctrl(ctx, EVP_PKEY_EC, EVP_PKEY_OP_PARAMGEN | EVP_PKEY_OP_KEYGEN,
+        EVP_PKEY_EC_PARAMGEN_CURVE_NID, nid, nullptr);
+}
+
+int LibCryptoApi::SetHkdfMd(void *ctx, const void *md)
+{
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        return EVP_PKEY_CTX_set_hkdf_md(ctx, md);
+    }
+    return EVP_PKEY_CTX_ctrl(ctx, -1, EVP_PKEY_OP_DERIVE_1_1_1, EVP_PKEY_HKDF_MD, 0,
+        const_cast<void *>(md));
+}
+
+int LibCryptoApi::SetHkdfSalt(void *ctx, const void *salt, int saltLen)
+{
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        return EVP_PKEY_CTX_set1_hkdf_salt(ctx, salt, saltLen);
+    }
+    return EVP_PKEY_CTX_ctrl(ctx, -1, EVP_PKEY_OP_DERIVE_1_1_1, EVP_PKEY_HKDF_SALT, saltLen,
+        const_cast<void *>(salt));
+}
+
+int LibCryptoApi::SetHkdfKey(void *ctx, const void *key, int keyLen)
+{
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        return EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keyLen);
+    }
+    return EVP_PKEY_CTX_ctrl(ctx, -1, EVP_PKEY_OP_DERIVE_1_1_1, EVP_PKEY_HKDF_KEY, keyLen,
+        const_cast<void *>(key));
+}
+
+int LibCryptoApi::SetHkdfMode(void *ctx, int mode)
+{
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        return EVP_PKEY_CTX_set_hkdf_mode(ctx, mode);
+    }
+    return EVP_PKEY_CTX_ctrl(ctx, -1, EVP_PKEY_OP_DERIVE_1_1_1, EVP_PKEY_HKDF_MODE, mode, nullptr);
+}
+
+int LibCryptoApi::AddHkdfInfo(void *ctx, const void *info, int infoLen)
+{
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        return EVP_PKEY_CTX_add1_hkdf_info(ctx, info, infoLen);
+    }
+    return EVP_PKEY_CTX_ctrl(ctx, -1, EVP_PKEY_OP_DERIVE_1_1_1, EVP_PKEY_HKDF_INFO, infoLen,
+        const_cast<void *>(info));
+}
+
 uint32_t LibCryptoApi::LoadAll()
+{
+    uint32_t ret = CONNECTOR_SELF_DLSYM(OpenSSL_version_num);
+    if (ret != SCF_SUCCESS) {
+        return SCF_ERRNO_LOAD_SYMBOL;
+    }
+    versionNum_ = OpenSSL_version_num();
+    ret |= LoadCoreSymbols();
+    ret |= LoadPkeySymbols();
+    if (ret != SCF_SUCCESS) {
+        return SCF_ERRNO_LOAD_SYMBOL;
+    }
+    return SCF_SUCCESS;
+}
+
+uint32_t LibCryptoApi::LoadCoreSymbols()
 {
     uint32_t ret = SCF_SUCCESS;
     ret |= CONNECTOR_SELF_DLSYM(OPENSSL_init_crypto);
@@ -80,13 +150,73 @@ uint32_t LibCryptoApi::LoadAll()
     ret |= CONNECTOR_SELF_DLSYM(ERR_get_error);
     ret |= CONNECTOR_SELF_DLSYM(ERR_error_string);
     ret |= CONNECTOR_SELF_DLSYM(ERR_print_errors_cb);
-    if (ret != SCF_SUCCESS) {
-        return SCF_ERRNO_LOAD_SYMBOL;
+    ret |= CONNECTOR_SELF_DLSYM(EVP_aes_128_gcm);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_aes_256_gcm);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_aes_128_ccm);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_chacha20_poly1305);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_CIPHER_CTX_new);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_CIPHER_CTX_free);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_CIPHER_CTX_ctrl);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_EncryptInit_ex);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_EncryptUpdate);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_EncryptFinal_ex);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_DecryptInit_ex);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_DecryptUpdate);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_DecryptFinal_ex);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_sha512);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_MD_CTX_new);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_MD_CTX_free);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_DigestInit_ex);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_DigestUpdate);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_DigestFinal_ex);
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        ret |= CONNECTOR_SELF_DLSYM(EVP_MD_get_size);
+    } else {
+        ret |= SelfDlSym("EVP_MD_size", EVP_MD_get_size);
     }
-    return SCF_SUCCESS;
+    ret |= CONNECTOR_SELF_DLSYM(HMAC);
+    ret |= CONNECTOR_SELF_DLSYM(OpenSSL_version);
+    return ret;
+}
+
+uint32_t LibCryptoApi::LoadPkeySymbols()
+{
+    uint32_t ret = SCF_SUCCESS;
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_new);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_new_id);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_new);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_free);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_keygen_init);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_keygen);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_derive_init);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_derive_set_peer);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_derive);
+    ret |= CONNECTOR_SELF_DLSYM(d2i_PUBKEY);
+    ret |= CONNECTOR_SELF_DLSYM(RAND_bytes);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_ctrl);
+    if (versionNum_ >= SSL_VERSION_3_X) {
+        ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_set_ec_paramgen_curve_nid);
+        ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_set_hkdf_md);
+        ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_set1_hkdf_salt);
+        ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_set1_hkdf_key);
+        ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_set_hkdf_mode);
+        ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_CTX_add1_hkdf_info);
+        ret |= CONNECTOR_SELF_DLSYM(OSSL_LIB_CTX_new);
+        ret |= CONNECTOR_SELF_DLSYM(OSSL_LIB_CTX_free);
+        ret |= CONNECTOR_SELF_DLSYM(OSSL_PROVIDER_load);
+        ret |= CONNECTOR_SELF_DLSYM(OSSL_PROVIDER_unload);
+        ret |= CONNECTOR_SELF_DLSYM(ERR_error_string_n);
+    }
+    return ret;
 }
 
 void LibCryptoApi::UnLoadAll()
+{
+    UnloadCoreSymbols();
+    UnloadPkeySymbols();
+}
+
+void LibCryptoApi::UnloadCoreSymbols()
 {
     OPENSSL_init_crypto.Reset();
     X509_STORE_add_cert.Reset();
@@ -109,5 +239,56 @@ void LibCryptoApi::UnLoadAll()
     ERR_get_error.Reset();
     ERR_error_string.Reset();
     ERR_print_errors_cb.Reset();
+    EVP_aes_128_gcm.Reset();
+    EVP_aes_256_gcm.Reset();
+    EVP_aes_128_ccm.Reset();
+    EVP_chacha20_poly1305.Reset();
+    EVP_CIPHER_CTX_new.Reset();
+    EVP_CIPHER_CTX_free.Reset();
+    EVP_CIPHER_CTX_ctrl.Reset();
+    EVP_EncryptInit_ex.Reset();
+    EVP_EncryptUpdate.Reset();
+    EVP_EncryptFinal_ex.Reset();
+    EVP_DecryptInit_ex.Reset();
+    EVP_DecryptUpdate.Reset();
+    EVP_DecryptFinal_ex.Reset();
+    EVP_sha512.Reset();
+    EVP_MD_CTX_new.Reset();
+    EVP_MD_CTX_free.Reset();
+    EVP_DigestInit_ex.Reset();
+    EVP_DigestUpdate.Reset();
+    EVP_DigestFinal_ex.Reset();
+    EVP_MD_get_size.Reset();
+    HMAC.Reset();
+    OpenSSL_version.Reset();
+}
+
+void LibCryptoApi::UnloadPkeySymbols()
+{
+    EVP_PKEY_new.Reset();
+    EVP_PKEY_CTX_new_id.Reset();
+    EVP_PKEY_CTX_new.Reset();
+    EVP_PKEY_CTX_free.Reset();
+    EVP_PKEY_keygen_init.Reset();
+    EVP_PKEY_keygen.Reset();
+    EVP_PKEY_CTX_set_ec_paramgen_curve_nid.Reset();
+    EVP_PKEY_derive_init.Reset();
+    EVP_PKEY_derive_set_peer.Reset();
+    EVP_PKEY_derive.Reset();
+    EVP_PKEY_CTX_ctrl.Reset();
+    EVP_PKEY_CTX_set_hkdf_md.Reset();
+    EVP_PKEY_CTX_set1_hkdf_salt.Reset();
+    EVP_PKEY_CTX_set1_hkdf_key.Reset();
+    EVP_PKEY_CTX_set_hkdf_mode.Reset();
+    EVP_PKEY_CTX_add1_hkdf_info.Reset();
+    d2i_PUBKEY.Reset();
+    RAND_bytes.Reset();
+    OpenSSL_version_num.Reset();
+    OSSL_LIB_CTX_new.Reset();
+    OSSL_LIB_CTX_free.Reset();
+    OSSL_PROVIDER_load.Reset();
+    OSSL_PROVIDER_unload.Reset();
+    ERR_error_string_n.Reset();
+    versionNum_ = 0;
 }
 }

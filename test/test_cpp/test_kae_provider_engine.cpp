@@ -30,17 +30,7 @@ constexpr uint32_t ASYNC_TIMEOUT_MS_1000 = 1000;
 constexpr size_t MAX_ALGO_COUNT_10 = 10;
 constexpr size_t PUBLIC_KEY_LEN_65 = 65;
 
-class TestKaeProviderEngine : public ::testing::Test {
-protected:
-    void SetUp() override
-    {
-        SetExternalLogFunction(ExternalLogFunction);
-    }
-
-    void TearDown() override
-    {
-        SetExternalLogFunction(nullptr);
-    }
+class TestKaeProviderEngine : public SCFSmokeTest {
 };
 
 TEST_F(TestKaeProviderEngine, ConstructionAndDestruction)
