@@ -56,6 +56,23 @@ function(add_linker_flags flag)
     endif()
 endfunction()
 
+# 将 ASAN 选项限制到需要插桩的 target，并在添加前检查编译器与链接器支持。
+function(scf_enable_asan target)
+    set(_saved_required_libraries ${CMAKE_REQUIRED_LIBRARIES})
+    set(CMAKE_REQUIRED_LIBRARIES "-fsanitize=address;asan")
+    check_cxx_compiler_flag("-fsanitize=address" asan_compile_supported)
+    check_linker_flag(CXX "-fsanitize=address" asan_link_supported)
+    set(CMAKE_REQUIRED_LIBRARIES ${_saved_required_libraries})
+
+    if (asan_compile_supported AND asan_link_supported)
+        target_compile_options(${target} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=address)
+    else ()
+        message(WARNING "ASAN is unavailable; ${target} will be built without ASAN.")
+    endif ()
+    unset(asan_compile_supported CACHE)
+    unset(asan_link_supported CACHE)
+endfunction()
 
 macro(set_secure_flags)
     # Make it colorful under ninja-build
@@ -78,7 +95,6 @@ macro(set_secure_flags)
         add_linker_flags(-pie) # pie
         add_linker_flags(-Wl,-z,relro,-z,now) # bind now
         add_linker_flags(-Wl,-z,noexecstack) # nx
-        add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
     else ()
 #        add_compiler_flags(-Wfloat-equal)
 #        add_compiler_flags(-Wstack-usage=8192)
@@ -125,7 +141,7 @@ macro(set_secure_flags)
     add_linker_flags(-rdynamic)
     add_linker_flags(-Wl,--no-undefined)
 
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if (CMAKE_BUILD_TYPE MATCHES "^(Release|RelWithDebInfo)$")
         # security-related compiler flags (must-have)
         add_compiler_flags(-fstack-protector-strong) # stack protection
         add_compiler_flags(-fPIC) # PIC
@@ -133,35 +149,21 @@ macro(set_secure_flags)
         add_compiler_flags(-D_FORTIFY_SOURCE=2) # fs
         add_compiler_flags(-O2) # optimize level
         add_compiler_flags(-ftrapv) # ftrapv
-        add_compiler_flags(-s) # strip
         add_compiler_flags(-Wl,-z,relro,-z,now) # bind now
 
         # security-related linker flags (must-have)
         # GCC 16 下会编译报错，需要注释，-pie是针对main函数的，scf是纯动态库，没有main函数
         add_linker_flags(-pie) # pie
-        add_linker_flags(-s) # strip
         add_linker_flags(-Wl,-z,relro,-z,now) # bind now
         add_linker_flags(-Wl,-z,noexecstack) # nx
+        # RelWithDebInfo 需保留调试符号供 RPM 提取 debuginfo，不能在链接阶段使用 -s。
+        # 纯 Release 无需生成调试信息，因此仅在此配置下剥离符号。
+        if (CMAKE_BUILD_TYPE STREQUAL "Release")
+            add_compiler_flags(-s) # strip
+            add_linker_flags(-s) # strip
+        endif ()
     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
         add_compiler_flags(-g)
-    endif()
-
-    if(BUILD_ASAN)
-        set(_saved_CRL ${CMAKE_REQUIRED_LIBRARIES})
-        set(CMAKE_REQUIRED_LIBRARIES "-fsanitize=address;asan")
-        add_compiler_flags("-fsanitize=address")
-#        add_compiler_flags(-fsanitize=leak)
-#        add_compiler_flags(-fsanitize=undefined)
-#        add_compiler_flags(-fsanitize=pointer-compare)
-#        add_compiler_flags(-fsanitize=pointer-subtract)
-
-#        add_linker_flags(-fno-pie)
-        add_linker_flags("-fsanitize=address")
-#        add_linker_flags(-fsanitize=pointer-subtract)
-#        add_linker_flags(-fsanitize=pointer-compare)
-#        add_linker_flags(-fsanitize=undefined)
-#        add_linker_flags(-fsanitize=leak)
-        set(CMAKE_REQUIRED_LIBRARIES ${_saved_CRL})
     endif()
 
     if(BUILD_FUZZ)
@@ -187,4 +189,3 @@ macro(set_secure_flags)
         link_libraries(asan gcov)
     endif()
 endmacro()
-
