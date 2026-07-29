@@ -139,19 +139,11 @@ function packaging_src() {
     TMPDIR=$(mktemp -d)
     STAGE="$TMPDIR/${RPM_PKG_NAME}-${RPM_PKG_VERSION}"
     mkdir -p "$STAGE"
-    if ! rsync -a \
-      --exclude '.git' \
-      --exclude '.idea' \
-      --exclude 'build' \
-      --exclude 'external' \
-      --exclude 'output' \
-      --exclude 'package' \
-      --exclude '*.o' \
-      --exclude '*.a' \
-      --exclude '*.so' \
-      --exclude '*.so.*' \
-      --exclude '*.swp' \
-      --exclude '*~' \
+    if ! git -C "$PROJECT_ROOT_DIR" ls-files -z > "$TMPDIR/tracked-files"; then
+        rm -rf "$TMPDIR"
+        return 1
+    fi
+    if ! rsync -a --from0 --files-from="$TMPDIR/tracked-files" --ignore-missing-args \
       "$PROJECT_ROOT_DIR"/ "$STAGE"/; then
         rm -rf "$TMPDIR"
         return 1
