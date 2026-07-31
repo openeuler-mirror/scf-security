@@ -87,7 +87,6 @@ macro(set_secure_flags)
         add_compiler_flags("-g -rdynamic")
         # security-related compiler flags (must-have)
         add_compiler_flags(-fPIC) # PIC
-        add_compiler_flags(-fPIE) # PIE
         add_compiler_flags(-O2) # optimize level
 
         # security-related linker flags (must-have)
@@ -145,7 +144,6 @@ macro(set_secure_flags)
         # security-related compiler flags (must-have)
         add_compiler_flags(-fstack-protector-strong) # stack protection
         add_compiler_flags(-fPIC) # PIC
-        add_compiler_flags(-fPIE) # PIE
         add_compiler_flags(-D_FORTIFY_SOURCE=2) # fs
         add_compiler_flags(-O2) # optimize level
         add_compiler_flags(-ftrapv) # ftrapv
@@ -179,7 +177,6 @@ macro(set_secure_flags)
 #        add_compiler_flags("-ftest-coverage")
         add_compiler_flags("-fstack-protector-strong")
         add_compiler_flags("-ftrapv")
-        add_compiler_flags("-fPIE")
         add_compile_options(-fsanitize=address -fsanitize-coverage=trace-pc,trace-cmp
                 -fno-omit-frame-pointer)
         add_link_options(-fsanitize=address -fsanitize-coverage=trace-pc,trace-cmp
