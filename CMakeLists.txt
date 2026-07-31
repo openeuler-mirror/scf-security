@@ -150,6 +150,9 @@ message("CMAKE_CONFIG_OUTPUT_DIRECTORY:  " ${CMAKE_CONFIG_OUTPUT_DIRECTORY})
 
 set(SCF_SRC_DIR ${PROJECT_SOURCE_DIR}/src)
 add_subdirectory(src)
+if(BUILD_ASAN)
+    scf_enable_asan(scf)
+endif()
 add_subdirectory(config)
 
 if(BUILD_TEST)
