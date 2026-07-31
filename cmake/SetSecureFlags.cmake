@@ -91,7 +91,7 @@ macro(set_secure_flags)
 
         # security-related linker flags (must-have)
         # GCC 16 下会编译报错，需要注释，-pie是针对main函数的，scf是纯动态库，没有main函数
-        add_linker_flags(-pie) # pie
+        #        add_linker_flags(-pie) # pie
         add_linker_flags(-Wl,-z,relro,-z,now) # bind now
         add_linker_flags(-Wl,-z,noexecstack) # nx
     else ()
@@ -151,7 +151,7 @@ macro(set_secure_flags)
 
         # security-related linker flags (must-have)
         # GCC 16 下会编译报错，需要注释，-pie是针对main函数的，scf是纯动态库，没有main函数
-        add_linker_flags(-pie) # pie
+        #        add_linker_flags(-pie) # pie
         add_linker_flags(-Wl,-z,relro,-z,now) # bind now
         add_linker_flags(-Wl,-z,noexecstack) # nx
         # RelWithDebInfo 需保留调试符号供 RPM 提取 debuginfo，不能在链接阶段使用 -s。
