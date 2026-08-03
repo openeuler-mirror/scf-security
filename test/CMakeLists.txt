@@ -25,6 +25,7 @@ target_include_directories(scf_tls_test_all
         ${PROJECT_SOURCE_DIR}/src/callback
         ${PROJECT_SOURCE_DIR}/src/adaptor/base
         ${PROJECT_SOURCE_DIR}/src/adaptor/include
+        ${PROJECT_SOURCE_DIR}/src/adaptor/openssl
         ${PROJECT_SOURCE_DIR}/src/common/constant
         ${PROJECT_SOURCE_DIR}/src/common/util
 )

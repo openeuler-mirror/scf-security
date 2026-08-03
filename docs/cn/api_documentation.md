@@ -775,6 +775,7 @@ typedef int32_t (*SCF_PskFindSessionCb)(
 | SCF_SSL_ERR_SET_EX_DATA               | 1962942765 | SSL设置ex_data失败                |
 | SCF_SSL_ERR_SESS_GET_CIPHER           | 1962942766 | SSL获取算法套失败                    |
 | SCF_SSL_ERR_SESS_GET_PROTOCOL_VER     | 1962942767 | SSL获取协议版本号失败                  |
+| SCF_SSL_ERR_CERT_EXT_ABSENT            | 1962942768 | 证书扩展字段不存在                    |
 
 ### 1.5 配置文件
 
@@ -2158,7 +2159,8 @@ int32_t SCF_Write(SCF_PolicyObj *obj, const uint8_t *data, uint32_t dataLen, uin
 ### 2.6 RBAC 节点身份与角色
 
 本节接口用于从证书扩展或运行期映射表解析节点身份和 RBAC 角色。节点 ID 最大长度为
-`MAX_NODE_ID_LEN - 1` 个字符；角色映射仅保存在当前进程的策略上下文中。
+`MAX_NODE_ID_LEN - 1` 字节，该长度是 SCF API 的约束，不是 X.509 标准限制；角色映射仅保存在当前进程的策略上下文中。
+NodeId 和角色自定义扩展的 `extnValue` 必须分别包含一个 DER 编码的 `UTF8String`。
 
 #### 2.6.1 SCF_GetCertNodeId
 
@@ -2248,13 +2250,13 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
     SCF_RBAC_ROLE *role, SCF_RBAC_ROLE_SOURCE *src);
 ```
 
-解析节点角色。传入证书时优先使用证书角色；证书没有角色扩展时，使用证书中的 NodeId 查询映射表。未传入证书时，直接使用 `nodeId` 查询映射表。
+解析节点角色。传入证书时优先使用证书角色；证书没有角色扩展时，优先使用证书中的 NodeId 查询映射表，证书也没有 NodeId 扩展时使用接口传入的 `nodeId`。未传入证书时，直接使用 `nodeId` 查询映射表。
 
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
 | ctx | [IN] | 是 | 安全策略上下文。 |
-| cert | [IN] | 否 | 可选证书句柄；非空时忽略 `nodeId`。 |
-| nodeId | [IN] | 条件必选 | `cert` 为空时用于映射表查询。 |
+| cert | [IN] | 否 | 可选证书句柄；非空时优先使用证书中的角色和 NodeId。 |
+| nodeId | [IN] | 条件必选 | 证书没有 NodeId 扩展时用于映射表查询。 |
 | role | [OUT] | 是 | 解析出的节点角色。 |
 | src | [OUT] | 是 | 角色来源：证书、映射表或无来源。 |
 

@@ -28,7 +28,7 @@ namespace scf {
 #define SCF_CRYPT_MD_UNKNOWN 0
 #define SCF_CRYPT_MD_SHA256 10006
 #define SCF_CRYPT_MD_SHA384 10007
-#define MAX_NODE_ID_LEN 128 // 节点 ID 最大缓冲区长度，包含结尾空字符
+#define MAX_NODE_ID_LEN 128 // SCF API 约定的节点 ID 缓冲区上限：127 字节数据和结尾空字符
 
 /**
  * @ingroup  scf

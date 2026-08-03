@@ -20,8 +20,6 @@
 #include "string_util.h"
 
 namespace scf {
-constexpr size_t MIN_NODE_ID_BUFFER_LEN = 2;
-
 static bool IsValidNodeId(const char *nodeId)
 {
     if (nodeId == nullptr) {
@@ -62,40 +60,21 @@ static int32_t GetMappingRole(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_R
     return SCF_SUCCESS;
 }
 
-static int32_t GetCertRoleAndNodeId(const void *cert, SCF_RBAC_ROLE *certRole, std::string &mappingNodeId)
-{
-    int32_t roleRet = SCF_GetCertRbacRole(cert, certRole);
-    if (roleRet != SCF_SUCCESS && roleRet != SCF_ERRNO_CERT_ROLE_EXT_ABSENT) {
-        CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate role failed, ret:" << roleRet);
-        return roleRet;
-    }
-    char certNodeId[MAX_NODE_ID_LEN] = {0};
-    size_t certNodeIdLen = 0;
-    int32_t nodeIdRet = SCF_GetCertNodeId(cert, certNodeId, sizeof(certNodeId), &certNodeIdLen);
-    if (nodeIdRet == SCF_SUCCESS) {
-        mappingNodeId = certNodeId;
-    } else if (nodeIdRet != SCF_ERRNO_CERT_NODE_ID_ABSENT) {
-        CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate node id failed, ret:" << nodeIdRet);
-        return nodeIdRet;
-    }
-    return roleRet;
-}
-
 int32_t SCF_GetCertNodeId(const void *cert, char *nodeIdBuffer, size_t bufferLen, size_t *nodeIdLen)
 {
     if (cert == nullptr || nodeIdBuffer == nullptr || nodeIdLen == nullptr) {
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||null input");
         return SCF_ERRNO_NULL_INPUT;
     }
-    if (bufferLen < MIN_NODE_ID_BUFFER_LEN) {
+    if (bufferLen == 0) {
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||buffer is too short");
-        return SCF_SSL_ERR_PARSE_CERT;
+        return SCF_ERRNO_INVALID_PARAM;
     }
     CHECK_SCF_INIT_RET("SCF_GetCertNodeId");
     CHECK_SCF_ADAPTOR_RET("SCF_GetCertNodeId");
     std::string nodeId;
     int32_t ret = g_adaptor->GetCertExtensionByOid(cert, SCF_OID_NODE_ID, nodeId);
-    if (ret == SCF_ERROR) {
+    if (ret == SCF_SSL_ERR_CERT_EXT_ABSENT) {
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||node id extension is absent");
         return SCF_ERRNO_CERT_NODE_ID_ABSENT;
     }
@@ -103,13 +82,17 @@ int32_t SCF_GetCertNodeId(const void *cert, char *nodeIdBuffer, size_t bufferLen
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||read node id extension failed, ret:" << ret);
         return ret;
     }
-    if (nodeId.empty() || nodeId.size() >= MAX_NODE_ID_LEN || nodeId.size() >= bufferLen) {
+    if (nodeId.empty() || nodeId.size() >= MAX_NODE_ID_LEN || nodeId.find('\0') != std::string::npos) {
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||node id extension is invalid");
         return SCF_SSL_ERR_PARSE_CERT;
     }
+    if (nodeId.size() >= bufferLen) {
+        CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||buffer is too short");
+        return SCF_ERRNO_INVALID_PARAM;
+    }
     if (memcpy_s(nodeIdBuffer, bufferLen, nodeId.data(), nodeId.size()) != EOK) {
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||copy node id failed");
-        return SCF_SSL_ERR_PARSE_CERT;
+        return SCF_ERRNO_MEM_CPY;
     }
     nodeIdBuffer[nodeId.size()] = '\0';
     *nodeIdLen = nodeId.size();
@@ -127,7 +110,7 @@ int32_t SCF_GetCertRbacRole(const void *cert, SCF_RBAC_ROLE *role)
     CHECK_SCF_ADAPTOR_RET("SCF_GetCertRbacRole");
     std::string value;
     int32_t ret = g_adaptor->GetCertExtensionByOid(cert, SCF_OID_RBAC_ROLE, value);
-    if (ret == SCF_ERROR) {
+    if (ret == SCF_SSL_ERR_CERT_EXT_ABSENT) {
         CCSEC_LOG_ERROR("|SCF_GetCertRbacRole|END|returnF||role extension is absent");
         return SCF_ERRNO_CERT_ROLE_EXT_ABSENT;
     }
@@ -203,43 +186,37 @@ int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId)
 int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *nodeId, SCF_RBAC_ROLE *role,
     SCF_RBAC_ROLE_SOURCE *src)
 {
-    if (ctx == nullptr || role == nullptr || src == nullptr) {
+    if (ctx == nullptr || (cert == nullptr && nodeId == nullptr) || role == nullptr || src == nullptr) {
         CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||null input");
         return SCF_ERRNO_NULL_INPUT;
     }
     CHECK_SCF_INIT_RET("SCF_GetNodeRbacRole");
     *role = SCF_RBAC_ROLE_UNKNOWN;
     *src = SCF_RBAC_ROLE_SRC_NONE;
-    std::string certNodeId;
-    const char *mappingNodeId = cert == nullptr ? nodeId : nullptr;
-    SCF_RBAC_ROLE certRole = SCF_RBAC_ROLE_UNKNOWN;
+    const char *mappingNodeId = nodeId;
+    char certNodeId[MAX_NODE_ID_LEN] = {0};
     if (cert != nullptr) {
-        // 证书存在时忽略调用方传入的 nodeId，仅使用证书身份参与裁决。
-        int32_t certRoleRet = GetCertRoleAndNodeId(cert, &certRole, certNodeId);
-        if (certRoleRet != SCF_SUCCESS && certRoleRet != SCF_ERRNO_CERT_ROLE_EXT_ABSENT) {
-            return certRoleRet;
-        }
-        mappingNodeId = certNodeId.empty() ? nullptr : certNodeId.c_str();
-        SCF_RBAC_ROLE mappingRole = SCF_RBAC_ROLE_UNKNOWN;
-        int32_t mappingRet = GetMappingRole(ctx, mappingNodeId, &mappingRole);
+        int32_t certRoleRet = SCF_GetCertRbacRole(cert, role);
         if (certRoleRet == SCF_SUCCESS) {
-            // 证书角色由 CA 签名背书，优先于运行期映射。
-            if (mappingRet == SCF_SUCCESS && mappingRole != certRole) {
-                CCSEC_LOG_WARN("|SCF_GetNodeRbacRole|WARN|||certificate role conflicts with node role mapping");
-            }
-            *role = certRole;
             *src = SCF_RBAC_ROLE_SRC_CERT;
             CCSEC_LOG_DEBUG("|SCF_GetNodeRbacRole|END|returnS||get node role from certificate success");
             return SCF_SUCCESS;
         }
-        if (mappingRet == SCF_SUCCESS) {
-            *role = mappingRole;
-            *src = SCF_RBAC_ROLE_SRC_MAPPING;
-            CCSEC_LOG_DEBUG("|SCF_GetNodeRbacRole|END|returnS||get node role from mapping success");
-            return SCF_SUCCESS;
+        if (certRoleRet != SCF_SUCCESS && certRoleRet != SCF_ERRNO_CERT_ROLE_EXT_ABSENT) {
+            CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate role failed, ret:" << certRoleRet);
+            return certRoleRet;
         }
-        CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||role is unknown");
-        return SCF_ERRNO_RBAC_ROLE_UNKNOWN;
+        size_t certNodeIdLen = 0;
+        int32_t certNodeIdRet = SCF_GetCertNodeId(cert, certNodeId, sizeof(certNodeId), &certNodeIdLen);
+        if (certNodeIdRet == SCF_SUCCESS) {
+            mappingNodeId = certNodeId;
+        } else if (certNodeIdRet != SCF_ERRNO_CERT_NODE_ID_ABSENT) {
+            CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate node id failed, ret:" << certNodeIdRet);
+            return certNodeIdRet;
+        } else {
+            CCSEC_LOG_WARN(
+                "|SCF_GetNodeRbacRole|WARN|||certificate node id extension is absent, fallback to input node id");
+        }
     }
     if (GetMappingRole(ctx, mappingNodeId, role) != SCF_SUCCESS) {
         CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||role is unknown");

@@ -149,6 +149,11 @@ uint32_t LibCryptoApi::LoadCoreSymbols()
     ret |= CONNECTOR_SELF_DLSYM(X509_EXTENSION_get_data);
     ret |= CONNECTOR_SELF_DLSYM(ASN1_STRING_get0_data);
     ret |= CONNECTOR_SELF_DLSYM(ASN1_STRING_length);
+    ret |= CONNECTOR_SELF_DLSYM(d2i_ASN1_UTF8STRING);
+    ret |= CONNECTOR_SELF_DLSYM(i2d_ASN1_UTF8STRING);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_STRING_to_UTF8);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_UTF8STRING_free);
+    ret |= CONNECTOR_SELF_DLSYM(CRYPTO_free);
     ret |= CONNECTOR_SELF_DLSYM(BIO_new_mem_buf);
     ret |= CONNECTOR_SELF_DLSYM(BIO_free);
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_free);
@@ -252,6 +257,11 @@ void LibCryptoApi::UnloadCoreSymbols()
     X509_EXTENSION_get_data.Reset();
     ASN1_STRING_get0_data.Reset();
     ASN1_STRING_length.Reset();
+    d2i_ASN1_UTF8STRING.Reset();
+    i2d_ASN1_UTF8STRING.Reset();
+    ASN1_STRING_to_UTF8.Reset();
+    ASN1_UTF8STRING_free.Reset();
+    CRYPTO_free.Reset();
     BIO_new_mem_buf.Reset();
     BIO_free.Reset();
     EVP_PKEY_free.Reset();

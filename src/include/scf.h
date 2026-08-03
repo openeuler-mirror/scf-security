@@ -299,8 +299,8 @@ int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId);
  * @ingroup scf
  * @brief 获取节点 RBAC 角色，证书角色优先于节点角色映射。
  * @param ctx [IN] 安全策略上下文。
- * @param cert [IN] 可选证书指针；非空时从证书获取节点 ID 和角色。
- * @param nodeId [IN] cert 为空时用于查询映射的节点 ID。
+ * @param cert [IN] 可选证书指针；非空时优先从证书获取节点 ID 和角色。
+ * @param nodeId [IN] 证书没有 NodeId 扩展时用于查询映射的节点 ID。
  * @param role [OUT] 解析出的角色。
  * @param src [OUT] 角色来源。
  * @return SCF_SUCCESS 或 SCF_ERRNO_RBAC_ROLE_UNKNOWN。

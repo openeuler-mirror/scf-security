@@ -140,6 +140,7 @@ std::map<int32_t, std::string> errorMap = {
     {SCF_SSL_ERR_SET_EX_DATA, "SSL set extra data error"},
     {SCF_SSL_ERR_SESS_GET_CIPHER, "SSL session get cipher error"},
     {SCF_SSL_ERR_SESS_GET_PROTOCOL_VER, "SSL session get protocol version error"},
+    {SCF_SSL_ERR_CERT_EXT_ABSENT, "SSL certificate extension is absent"},
 };
 
 std::string GetErrorMessageInternal(int32_t errorCode)

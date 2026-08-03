@@ -16,6 +16,8 @@
 
 #include <cstring>
 
+#include "constant_def.h"
+#include "lib_crypto_api.h"
 #include "scf.h"
 #include "scf_errno.h"
 
@@ -28,6 +30,27 @@ void FreezeNodeRoleMapping(SCF_PolicyCtx *ctx);
 namespace test {
 constexpr size_t NODE_ID_BUFFER_SIZE = 128;
 constexpr uint32_t NODE_ROLE_MAP_CAPACITY = 4096;
+
+static unsigned char *GetExtensionData(void *cert, const char *oid, int *dataLen)
+{
+    auto &cryptoApi = LibCryptoApi::GetInstance();
+    auto *object = cryptoApi.OBJ_txt2obj(oid, 1);
+    if (object == nullptr) {
+        return nullptr;
+    }
+    int index = cryptoApi.X509_get_ext_by_OBJ(cert, object, -1);
+    cryptoApi.ASN1_OBJECT_free(object);
+    if (index < 0) {
+        return nullptr;
+    }
+    auto *extension = cryptoApi.X509_get_ext(cert, index);
+    auto *data = extension == nullptr ? nullptr : cryptoApi.X509_EXTENSION_get_data(extension);
+    if (data == nullptr) {
+        return nullptr;
+    }
+    *dataLen = cryptoApi.ASN1_STRING_length(data);
+    return const_cast<unsigned char *>(cryptoApi.ASN1_STRING_get0_data(data));
+}
 
 class TestRbac : public ::testing::Test {
 protected:
@@ -137,6 +160,7 @@ TEST_F(TestRbac, RbacSr01ErrorsHaveMessages)
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_CERT_NODE_ID_ABSENT), "RBAC certificate node ID extension is absent");
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_CERT_ROLE_EXT_ABSENT), "RBAC certificate role extension is absent");
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_MAP_FROZEN), "RBAC node role mapping is frozen");
+    EXPECT_STREQ(GetErrorMessage(SCF_SSL_ERR_CERT_EXT_ABSENT), "SSL certificate extension is absent");
 }
 
 TEST_F(TestRbac, NodeRoleMappingRequiresInitializedScf)
@@ -176,7 +200,7 @@ TEST_F(TestRbac, NodeRoleLookupRejectsNullOutput)
     EXPECT_EQ(SCF_GetNodeRbacRole(nullptr, nullptr, "node-1", &role, &src), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", nullptr, &src), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", &role, nullptr), SCF_ERRNO_NULL_INPUT);
-    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, nullptr, &role, &src), SCF_ERRNO_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, nullptr, &role, &src), SCF_ERRNO_NULL_INPUT);
 }
 
 TEST_F(TestRbac, CertificateExtensionsAndRolePriority)
@@ -197,8 +221,10 @@ TEST_F(TestRbac, CertificateExtensionsAndRolePriority)
     EXPECT_EQ(role, SCF_RBAC_ROLE_MASTER);
     EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_CERT);
     char smallBuffer[2] = {0};
-    EXPECT_EQ(SCF_GetCertNodeId(cert, smallBuffer, sizeof(smallBuffer), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
-    EXPECT_EQ(SCF_GetCertNodeId(cert, smallBuffer, 1, &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
+    char exactBuffer[9] = {0};
+    EXPECT_EQ(SCF_GetCertNodeId(cert, smallBuffer, sizeof(smallBuffer), &nodeIdLen), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_GetCertNodeId(cert, smallBuffer, 1, &nodeIdLen), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_GetCertNodeId(cert, exactBuffer, sizeof(exactBuffer), &nodeIdLen), SCF_ERRNO_INVALID_PARAM);
 }
 
 TEST_F(TestRbac, CertificateSlaveRoleIsReturned)
@@ -225,5 +251,85 @@ TEST_F(TestRbac, RoleMappingFallbackForCertificateWithoutRoleExtension)
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_SUCCESS);
     EXPECT_EQ(role, SCF_RBAC_ROLE_SLAVE);
     EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_MAPPING);
+}
+
+TEST_F(TestRbac, CertificateWithoutRbacExtensionsFallsBackToInputNodeId)
+{
+    void *cert = LoadRbacCert("test_cert/client.pem");
+    ASSERT_NE(cert, nullptr);
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-input", SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, "node-input", &role, &src), SCF_SUCCESS);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_SLAVE);
+    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_MAPPING);
+}
+
+TEST_F(TestRbac, CertificateNodeIdRejectsEmbeddedNull)
+{
+    void *cert = LoadRbacCert("rbac_node_only_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    int dataLen = 0;
+    unsigned char *data = GetExtensionData(cert, SCF_OID_NODE_ID, &dataLen);
+    ASSERT_NE(data, nullptr);
+    ASSERT_EQ(dataLen, 13);
+    const unsigned char nodeIdWithNull[] = {'a', 'd', 'm', 'i', 'n', 0, 's', 'u', 'f', 'f', 'x'};
+    std::memcpy(data + 2, nodeIdWithNull, sizeof(nodeIdWithNull));
+
+    char nodeId[NODE_ID_BUFFER_SIZE] = {0};
+    size_t nodeIdLen = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
+
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "admin", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_SSL_ERR_PARSE_CERT);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_NONE);
+}
+
+TEST_F(TestRbac, CertificateExtensionRejectsNonCanonicalLongFormLength)
+{
+    void *cert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    int dataLen = 0;
+    unsigned char *data = GetExtensionData(cert, SCF_OID_NODE_ID, &dataLen);
+    ASSERT_NE(data, nullptr);
+    ASSERT_EQ(dataLen, 11);
+    data[1] = 0x81U;
+    data[2] = 8U;
+    char nodeId[NODE_ID_BUFFER_SIZE] = {0};
+    size_t nodeIdLen = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
+}
+
+TEST_F(TestRbac, CertificateExtensionRejectsLeadingZeroLengthOctet)
+{
+    void *cert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    int dataLen = 0;
+    unsigned char *data = GetExtensionData(cert, SCF_OID_NODE_ID, &dataLen);
+    ASSERT_NE(data, nullptr);
+    ASSERT_EQ(dataLen, 11);
+    data[1] = 0x82U;
+    data[2] = 0;
+    data[3] = 7U;
+    char nodeId[NODE_ID_BUFFER_SIZE] = {0};
+    size_t nodeIdLen = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
+}
+
+TEST_F(TestRbac, CertificateExtensionRejectsInvalidUtf8)
+{
+    void *cert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    int dataLen = 0;
+    unsigned char *data = GetExtensionData(cert, SCF_OID_NODE_ID, &dataLen);
+    ASSERT_NE(data, nullptr);
+    ASSERT_EQ(dataLen, 11);
+    data[2] = 0xC0U;
+    char nodeId[NODE_ID_BUFFER_SIZE] = {0};
+    size_t nodeIdLen = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
 }
 }

@@ -1446,6 +1446,84 @@ uint8_t *OpenSSLAdapter::GetCertSerialNumber(const void *cert, uint32_t *dataLen
     return snString->data;
 }
 
+/**
+ * @brief 释放 d2i_ASN1_UTF8STRING 创建的 ASN.1 对象，供 unique_ptr 自动管理生命周期。
+ * @param data ASN.1 UTF8String 对象。
+ */
+static void FreeAsn1Utf8String(void *data)
+{
+    LibCryptoApi::GetInstance().ASN1_UTF8STRING_free(data);
+}
+
+/**
+ * @brief 释放 OpenSSL 内部分配的编码或字符串缓冲区。
+ * @param data OpenSSL 分配的缓冲区。
+ */
+static void FreeOpenSslBuffer(unsigned char *data)
+{
+    LibCryptoApi::GetInstance().CRYPTO_free(data, nullptr, 0);
+}
+
+/**
+ * @brief 通过重新编码并逐字节比较，确认 d2i 解码的输入是规范 DER。
+ * @param utf8String 已解码的 ASN.1 UTF8String 对象。
+ * @param encoded 原始编码数据。
+ * @param encodedLen 原始编码数据长度。
+ * @return 输入是否为规范 DER。
+ */
+static bool IsCanonicalDerUtf8String(const void *utf8String, const unsigned char *encoded, int encodedLen)
+{
+    unsigned char *canonicalData = nullptr;
+    int canonicalLen = LibCryptoApi::GetInstance().i2d_ASN1_UTF8STRING(utf8String, &canonicalData);
+    std::unique_ptr<unsigned char, decltype(&FreeOpenSslBuffer)> canonicalBuffer(canonicalData, FreeOpenSslBuffer);
+    return canonicalLen == encodedLen && canonicalBuffer != nullptr &&
+           memcmp(canonicalBuffer.get(), encoded, encodedLen) == 0;
+}
+
+/**
+ * @brief 解码并校验 DER 编码的 ASN.1 UTF8String。
+ * @param encoded DER 编码数据。
+ * @param encodedLen DER 编码数据长度。
+ * @param value 解码后的 UTF-8 字符串。
+ * @return 成功返回 SCF_SUCCESS，失败返回证书解析错误码。
+ */
+static int32_t DecodeDerUtf8String(const unsigned char *encoded, int encodedLen, std::string &value)
+{
+    // 将扩展值解码为 ASN.1 UTF8String，并要求解码器完整消费输入，拒绝尾随数据。
+    auto &cryptoApi = LibCryptoApi::GetInstance();
+    const unsigned char *cursor = encoded;
+    void *decoded = cryptoApi.d2i_ASN1_UTF8STRING(nullptr, &cursor, encodedLen);
+    std::unique_ptr<void, decltype(&FreeAsn1Utf8String)> utf8String(decoded, FreeAsn1Utf8String);
+    if (utf8String == nullptr || cursor != encoded + encodedLen) {
+        CCSEC_LOG_ERROR("Openssl DecodeDerUtf8String extension is not a valid ASN.1 UTF8String");
+        return SCF_SSL_ERR_PARSE_CERT;
+    }
+    if (!IsCanonicalDerUtf8String(utf8String.get(), encoded, encodedLen)) {
+        CCSEC_LOG_ERROR("Openssl DecodeDerUtf8String extension is not canonical DER");
+        return SCF_SSL_ERR_PARSE_CERT;
+    }
+
+    // 使用 OpenSSL 完成 UTF-8 语法校验和转换，避免自行维护字符编码规则。
+    unsigned char *utf8Data = nullptr;
+    int utf8Len = cryptoApi.ASN1_STRING_to_UTF8(&utf8Data, utf8String.get());
+    std::unique_ptr<unsigned char, decltype(&FreeOpenSslBuffer)> utf8Buffer(utf8Data, FreeOpenSslBuffer);
+    if (utf8Len < 0 || (utf8Len > 0 && utf8Buffer == nullptr)) {
+        CCSEC_LOG_ERROR("Openssl DecodeDerUtf8String extension value is not valid UTF-8");
+        return SCF_SSL_ERR_PARSE_CERT;
+    }
+    if (utf8Len > 0) {
+        value.assign(utf8Buffer.get(), utf8Buffer.get() + utf8Len);
+    }
+    return SCF_SUCCESS;
+}
+
+/**
+ * @brief 根据 OID 获取并解析证书中的 DER UTF8String 扩展。
+ * @param cert X.509 证书对象。
+ * @param oid 扩展 OID 字符串。
+ * @param value 解析后的扩展值。
+ * @return 成功返回 SCF_SUCCESS，失败返回对应错误码。
+ */
 int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid, std::string &value)
 {
     value.clear();
@@ -1453,6 +1531,7 @@ int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid,
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid invalid input");
         return SCF_ERRNO_NULL_INPUT;
     }
+    // 将文本 OID 转换为 ASN.1 对象，并在证书扩展列表中定位对应扩展。
     auto *object = LibCryptoApi::GetInstance().OBJ_txt2obj(oid, 1);
     if (object == nullptr) {
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid convert oid failed");
@@ -1462,42 +1541,24 @@ int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid,
     LibCryptoApi::GetInstance().ASN1_OBJECT_free(object);
     if (index < 0) {
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension is absent");
-        return SCF_ERROR;
+        return SCF_SSL_ERR_CERT_EXT_ABSENT;
     }
     auto *extension = LibCryptoApi::GetInstance().X509_get_ext(cert, index);
     if (extension == nullptr) {
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid get extension failed");
         return SCF_SSL_ERR_PARSE_CERT;
     }
+    // X.509 扩展值外层是 OCTET STRING，取出其中保存的自定义 DER UTF8String。
     auto *data = LibCryptoApi::GetInstance().X509_EXTENSION_get_data(extension);
     int dataLen = data == nullptr ? -1 : LibCryptoApi::GetInstance().ASN1_STRING_length(data);
     const unsigned char *dataPtr = data == nullptr ? nullptr : LibCryptoApi::GetInstance().ASN1_STRING_get0_data(data);
-    if (dataPtr == nullptr || dataLen < ASN1_TAG_AND_LENGTH_SIZE || dataPtr[0] != ASN1_UTF8_STRING_TAG) {
+    if (dataPtr == nullptr || dataLen <= 0) {
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension data is invalid");
         return SCF_SSL_ERR_PARSE_CERT;
     }
-    size_t offset = ASN1_TAG_AND_LENGTH_SIZE;
-    size_t valueLen = 0;
-    if ((dataPtr[1] & 0x80U) == 0) {
-        valueLen = dataPtr[1];
-    } else {
-        uint8_t lengthBytes = dataPtr[1] & 0x7fU;
-        if (lengthBytes == 0 || lengthBytes > sizeof(size_t) || offset + lengthBytes > static_cast<size_t>(dataLen)) {
-            CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension length is invalid");
-            return SCF_SSL_ERR_PARSE_CERT;
-        }
-        for (uint8_t i = 0; i < lengthBytes; ++i) {
-            valueLen = (valueLen << 8U) | dataPtr[offset++];
-        }
-    }
-    if (offset + valueLen != static_cast<size_t>(dataLen)) {
-        CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension value length is invalid");
-        return SCF_SSL_ERR_PARSE_CERT;
-    }
-    value.assign(dataPtr + offset, dataPtr + offset + valueLen);
-    return SCF_SUCCESS;
+    // 解码、校验并返回 UTF-8 内容。
+    return DecodeDerUtf8String(dataPtr, dataLen, value);
 }
-
 
 int32_t OpenSSLAdapter::GetCipherSuites(SCF_PolicyCtx *ctx, uint16_t *data, uint32_t dataLen,
     uint32_t *cipherSuitesSize)
