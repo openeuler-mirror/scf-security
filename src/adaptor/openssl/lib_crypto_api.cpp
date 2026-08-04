@@ -265,11 +265,17 @@ void LibCryptoApi::UnloadCoreSymbols()
     BIO_new_mem_buf.Reset();
     BIO_free.Reset();
     EVP_PKEY_free.Reset();
-    EVP_sha256.Reset();
-    EVP_sha384.Reset();
     ERR_get_error.Reset();
     ERR_error_string.Reset();
     ERR_print_errors_cb.Reset();
+    UnloadCryptoAlgorithmSymbols();
+    OpenSSL_version.Reset();
+}
+
+void LibCryptoApi::UnloadCryptoAlgorithmSymbols()
+{
+    EVP_sha256.Reset();
+    EVP_sha384.Reset();
     EVP_aes_128_gcm.Reset();
     EVP_aes_256_gcm.Reset();
     EVP_aes_128_ccm.Reset();
@@ -291,7 +297,6 @@ void LibCryptoApi::UnloadCoreSymbols()
     EVP_DigestFinal_ex.Reset();
     EVP_MD_get_size.Reset();
     HMAC.Reset();
-    OpenSSL_version.Reset();
 }
 
 void LibCryptoApi::UnloadPkeySymbols()
