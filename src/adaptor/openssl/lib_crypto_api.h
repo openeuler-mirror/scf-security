@@ -150,6 +150,7 @@ private:
 
     void UnLoadAll();
     void UnloadCoreSymbols();
+    void UnloadCryptoAlgorithmSymbols();
     void UnloadPkeySymbols();
 
     uint64_t versionNum_ = 0;
