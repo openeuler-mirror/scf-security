@@ -1538,11 +1538,18 @@ int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid,
         return SCF_SSL_ERR_PARSE_CERT;
     }
     int index = LibCryptoApi::GetInstance().X509_get_ext_by_OBJ(cert, object, -1);
-    LibCryptoApi::GetInstance().ASN1_OBJECT_free(object);
     if (index < 0) {
+        LibCryptoApi::GetInstance().ASN1_OBJECT_free(object);
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension is absent");
         return SCF_SSL_ERR_CERT_EXT_ABSENT;
     }
+    int duplicateIndex = LibCryptoApi::GetInstance().X509_get_ext_by_OBJ(cert, object, index);
+    if (duplicateIndex >= 0) {
+        LibCryptoApi::GetInstance().ASN1_OBJECT_free(object);
+        CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid extension OID appears more than once");
+        return SCF_SSL_ERR_PARSE_CERT;
+    }
+    LibCryptoApi::GetInstance().ASN1_OBJECT_free(object);
     auto *extension = LibCryptoApi::GetInstance().X509_get_ext(cert, index);
     if (extension == nullptr) {
         CCSEC_LOG_ERROR("Openssl GetCertExtensionByOid get extension failed");

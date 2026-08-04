@@ -13,6 +13,8 @@ add_executable(scf_tls_test_all ${ALL_SOURCES})
 target_link_libraries(
         scf_tls_test_all PRIVATE SCF::scf Dependency::gtest Dependency::secure_c
 )
+scf_enable_pie(scf_tls_test_all)
+scf_add_hardening_check(scf_tls_test_all)
 if (BUILD_ASAN)
     scf_enable_asan(scf_tls_test_all)
 endif ()

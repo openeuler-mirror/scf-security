@@ -214,8 +214,9 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
             CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate node id failed, ret:" << certNodeIdRet);
             return certNodeIdRet;
         } else {
-            CCSEC_LOG_WARN(
-                "|SCF_GetNodeRbacRole|WARN|||certificate node id extension is absent, fallback to input node id");
+            CCSEC_LOG_ERROR(
+                "|SCF_GetNodeRbacRole|END|returnF||certificate node id extension is absent; refusing input node id");
+            return SCF_ERRNO_CERT_NODE_ID_ABSENT;
         }
     }
     if (GetMappingRole(ctx, mappingNodeId, role) != SCF_SUCCESS) {

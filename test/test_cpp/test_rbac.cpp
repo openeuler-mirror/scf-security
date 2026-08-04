@@ -12,20 +12,20 @@
  */
 
 #include <gtest/gtest.h>
+#include <dlfcn.h>
 #include <unistd.h>
 
 #include <cstring>
+#include <vector>
 
 #include "constant_def.h"
 #include "lib_crypto_api.h"
+#include "openssl_adaptor.h"
 #include "scf.h"
 #include "scf_errno.h"
+#include "scf_inner.h"
 
 using namespace scf;
-
-namespace scf {
-void FreezeNodeRoleMapping(SCF_PolicyCtx *ctx);
-}
 
 namespace test {
 constexpr size_t NODE_ID_BUFFER_SIZE = 128;
@@ -51,6 +51,78 @@ static unsigned char *GetExtensionData(void *cert, const char *oid, int *dataLen
     *dataLen = cryptoApi.ASN1_STRING_length(data);
     return const_cast<unsigned char *>(cryptoApi.ASN1_STRING_get0_data(data));
 }
+
+static AbstractTLSAdaptor **GetLibraryAdaptorSlot()
+{
+    static AbstractTLSAdaptor **slot = []() {
+        Dl_info libraryInfo{};
+        if (dladdr(reinterpret_cast<void *>(SCF_Connect), &libraryInfo) == 0) {
+            return static_cast<AbstractTLSAdaptor **>(nullptr);
+        }
+        void *handle = dlopen(libraryInfo.dli_fname, RTLD_NOW | RTLD_NOLOAD);
+        if (handle == nullptr) {
+            return static_cast<AbstractTLSAdaptor **>(nullptr);
+        }
+        return reinterpret_cast<AbstractTLSAdaptor **>(dlsym(handle, "_ZN3scf9g_adaptorE"));
+    }();
+    return slot;
+}
+
+class ConnectionAdaptorStub final : public OpenSSLAdapter {
+public:
+    int32_t Connect(SCF_PolicyObj *obj) override
+    {
+        (void)obj;
+        return Next(connectResults);
+    }
+
+    int32_t Accept(SCF_PolicyObj *obj) override
+    {
+        (void)obj;
+        return Next(acceptResults);
+    }
+
+    std::vector<int32_t> connectResults;
+    std::vector<int32_t> acceptResults;
+
+private:
+    static int32_t Next(std::vector<int32_t> &results)
+    {
+        if (results.empty()) {
+            return SCF_ERROR;
+        }
+        int32_t ret = results.front();
+        results.erase(results.begin());
+        return ret;
+    }
+};
+
+class ScopedAdaptorOverride {
+public:
+    explicit ScopedAdaptorOverride(AbstractTLSAdaptor *replacement) : previous_(g_adaptor)
+    {
+        slot_ = GetLibraryAdaptorSlot();
+        if (slot_ != nullptr) {
+            previous_ = *slot_;
+            *slot_ = replacement;
+        } else {
+            g_adaptor = replacement;
+        }
+    }
+
+    ~ScopedAdaptorOverride()
+    {
+        if (slot_ != nullptr) {
+            *slot_ = previous_;
+        } else {
+            g_adaptor = previous_;
+        }
+    }
+
+private:
+    AbstractTLSAdaptor **slot_ = nullptr;
+    AbstractTLSAdaptor *previous_ = nullptr;
+};
 
 class TestRbac : public ::testing::Test {
 protected:
@@ -139,17 +211,36 @@ TEST_F(TestRbac, NodeRoleMappingRejectsEntriesBeyondCapacity)
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-overflow", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_RBAC_MAP_FULL);
 }
 
-TEST_F(TestRbac, NodeRoleMappingIsFrozenAfterConnectionEstablished)
+TEST_F(TestRbac, NodeRoleMappingIsFrozenOnlyAfterSuccessfulConnect)
 {
-    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
-    SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_SetPolicy(ctx_, SCF_ROLE_CLIENT, SCF_VERIFY_DEFAULT, SCF_POLICY_HIGH), SCF_SUCCESS);
+    obj_ = SCF_CreatePolicyObj(ctx_);
+    ASSERT_NE(obj_, nullptr);
+    ConnectionAdaptorStub adaptor;
+    adaptor.connectResults = {SCF_SSL_ERR_WANT_READ, SCF_SUCCESS};
+    ASSERT_NE(GetLibraryAdaptorSlot(), nullptr);
+    ScopedAdaptorOverride adaptorOverride(&adaptor);
     ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
-    scf::FreezeNodeRoleMapping(ctx_);
-    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_SLAVE), SCF_ERRNO_RBAC_MAP_FROZEN);
-    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-2", SCF_RBAC_ROLE_SLAVE), SCF_ERRNO_RBAC_MAP_FROZEN);
+    EXPECT_EQ(SCF_Connect(obj_), SCF_SSL_ERR_WANT_READ);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
+    EXPECT_EQ(SCF_Connect(obj_), SCF_SUCCESS);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_RBAC_MAP_FROZEN);
+}
+
+TEST_F(TestRbac, NodeRoleMappingIsFrozenOnlyAfterSuccessfulAccept)
+{
+    ASSERT_EQ(SCF_SetPolicy(ctx_, SCF_ROLE_SERVER, SCF_VERIFY_DEFAULT, SCF_POLICY_HIGH), SCF_SUCCESS);
+    obj_ = SCF_CreatePolicyObj(ctx_);
+    ASSERT_NE(obj_, nullptr);
+    ConnectionAdaptorStub adaptor;
+    adaptor.acceptResults = {SCF_SSL_ERR_WANT_WRITE, SCF_SUCCESS};
+    ASSERT_NE(GetLibraryAdaptorSlot(), nullptr);
+    ScopedAdaptorOverride adaptorOverride(&adaptor);
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    EXPECT_EQ(SCF_Accept(obj_), SCF_SSL_ERR_WANT_WRITE);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
+    EXPECT_EQ(SCF_Accept(obj_), SCF_SUCCESS);
     EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, "node-1"), SCF_ERRNO_RBAC_MAP_FROZEN);
-    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", &role, &src), SCF_SUCCESS);
-    EXPECT_EQ(role, SCF_RBAC_ROLE_MASTER);
 }
 
 TEST_F(TestRbac, RbacSr01ErrorsHaveMessages)
@@ -190,7 +281,7 @@ TEST_F(TestRbac, CertificateWithoutRbacExtensionsReturnsAbsentAndUnknown)
     SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
     EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_CERT_NODE_ID_ABSENT);
     EXPECT_EQ(SCF_GetCertRbacRole(cert, &role), SCF_ERRNO_CERT_ROLE_EXT_ABSENT);
-    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_ERRNO_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_ERRNO_CERT_NODE_ID_ABSENT);
 }
 
 TEST_F(TestRbac, NodeRoleLookupRejectsNullOutput)
@@ -253,16 +344,45 @@ TEST_F(TestRbac, RoleMappingFallbackForCertificateWithoutRoleExtension)
     EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_MAPPING);
 }
 
-TEST_F(TestRbac, CertificateWithoutRbacExtensionsFallsBackToInputNodeId)
+TEST_F(TestRbac, CertificateWithoutIdentityCannotUseCallerNodeId)
 {
     void *cert = LoadRbacCert("test_cert/client.pem");
     ASSERT_NE(cert, nullptr);
     SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
     SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
-    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-input", SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
-    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, "node-input", &role, &src), SCF_SUCCESS);
-    EXPECT_EQ(role, SCF_RBAC_ROLE_SLAVE);
-    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_MAPPING);
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-input", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, "node-input", &role, &src), SCF_ERRNO_CERT_NODE_ID_ABSENT);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_NONE);
+}
+
+TEST_F(TestRbac, CertificateNodeIdDoesNotUseCallerNodeId)
+{
+    void *cert = LoadRbacCert("rbac_node_only_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-input", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, "node-input", &role, &src), SCF_ERRNO_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_NONE);
+}
+
+TEST_F(TestRbac, CertificateRejectsDuplicateNodeIdExtension)
+{
+    void *cert = LoadRbacCert("rbac_duplicate_node_id_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    char nodeId[NODE_ID_BUFFER_SIZE] = {0};
+    size_t nodeIdLen = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
+}
+
+TEST_F(TestRbac, CertificateRejectsDuplicateRoleExtension)
+{
+    void *cert = LoadRbacCert("rbac_duplicate_role_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    EXPECT_EQ(SCF_GetCertRbacRole(cert, &role), SCF_SSL_ERR_PARSE_CERT);
 }
 
 TEST_F(TestRbac, CertificateNodeIdRejectsEmbeddedNull)

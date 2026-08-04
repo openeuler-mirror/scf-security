@@ -74,6 +74,58 @@ function(scf_enable_asan target)
     unset(asan_link_supported CACHE)
 endfunction()
 
+function(scf_enable_pie target)
+    if(NOT TARGET ${target})
+        message(FATAL_ERROR "Cannot enable PIE for unknown target: ${target}")
+    endif()
+
+    get_target_property(_target_type ${target} TYPE)
+    if(NOT _target_type STREQUAL "EXECUTABLE")
+        message(FATAL_ERROR "PIE is only valid for executable targets: ${target}")
+    endif()
+
+    set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    target_link_options(${target} PRIVATE -pie)
+endfunction()
+
+function(scf_add_hardening_check target)
+    if(NOT TARGET ${target})
+        message(FATAL_ERROR "Cannot check hardening for unknown target: ${target}")
+    endif()
+
+    if(NOT UNIX)
+        return()
+    endif()
+
+    find_program(SCF_READELF_EXECUTABLE readelf)
+    if(NOT SCF_READELF_EXECUTABLE)
+        message(FATAL_ERROR "readelf is required for the ${target} hardening check")
+    endif()
+
+    get_target_property(_target_type ${target} TYPE)
+    set(_require_pie OFF)
+    if(_target_type STREQUAL "EXECUTABLE")
+        set(_require_pie ON)
+    elseif(_target_type STREQUAL "SHARED_LIBRARY")
+        get_target_property(_target_link_options ${target} LINK_OPTIONS)
+        if(_target_link_options)
+            list(FIND _target_link_options "-pie" _pie_option_index)
+            if(NOT _pie_option_index EQUAL -1)
+                message(FATAL_ERROR "Shared library ${target} must not use -pie")
+            endif()
+        endif()
+    endif()
+
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DARTIFACT=$<TARGET_FILE:${target}>
+            -DREADELF=${SCF_READELF_EXECUTABLE}
+            -DREQUIRE_PIE=${_require_pie}
+            -P ${PROJECT_SOURCE_DIR}/cmake/CheckHardening.cmake
+        VERBATIM
+    )
+endfunction()
+
 macro(set_secure_flags)
     # Make it colorful under ninja-build
     if(CMAKE_GENERATOR STREQUAL Ninja)
@@ -89,16 +141,15 @@ macro(set_secure_flags)
         add_compiler_flags(-fPIC) # PIC
         add_compiler_flags(-O2) # optimize level
 
-        # security-related linker flags (must-have)
-        # GCC 16 下会编译报错，需要注释，-pie是针对main函数的，scf是纯动态库，没有main函数
-        #        add_linker_flags(-pie) # pie
-        add_linker_flags(-Wl,-z,relro,-z,now) # bind now
-        add_linker_flags(-Wl,-z,noexecstack) # nx
     else ()
 #        add_compiler_flags(-Wfloat-equal)
 #        add_compiler_flags(-Wstack-usage=8192)
         add_compiler_flags(-Werror)
     endif()
+
+    # security-related linker flags (must-have)
+    add_linker_flags(-Wl,-z,relro,-z,now) # bind now
+    add_linker_flags(-Wl,-z,noexecstack) # nx
     # common compiler flags (good-to-have)
     add_compiler_flags(-Wall)
     add_compiler_flags(-Wextra)
@@ -149,11 +200,6 @@ macro(set_secure_flags)
         add_compiler_flags(-ftrapv) # ftrapv
         add_compiler_flags(-Wl,-z,relro,-z,now) # bind now
 
-        # security-related linker flags (must-have)
-        # GCC 16 下会编译报错，需要注释，-pie是针对main函数的，scf是纯动态库，没有main函数
-        #        add_linker_flags(-pie) # pie
-        add_linker_flags(-Wl,-z,relro,-z,now) # bind now
-        add_linker_flags(-Wl,-z,noexecstack) # nx
         # RelWithDebInfo 需保留调试符号供 RPM 提取 debuginfo，不能在链接阶段使用 -s。
         # 纯 Release 无需生成调试信息，因此仅在此配置下剥离符号。
         if (CMAKE_BUILD_TYPE STREQUAL "Release")
