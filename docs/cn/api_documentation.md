@@ -18,6 +18,8 @@
         - [1.1.12 协议算法套_配置文件](#1112-协议算法套_配置文件)
         - [1.1.13 证书用途_配置文件](#1113-证书用途_配置文件)
         - [1.1.14 协议版本号_字符串](#1114-协议版本号_字符串)
+        - [1.1.15 RBAC 角色](#1115-rbac-角色)
+        - [1.1.16 RBAC 角色来源](#1116-rbac-角色来源)
     - [1.2 结构体](#12-结构体)
         - [1.2.1 文件上下文](#121-文件上下文)
         - [1.2.2 安全策略上下文](#122-安全策略上下文)
@@ -466,6 +468,54 @@ std::unordered_map<std::string, SCF_CERT_TYPE> tlsCertTypeMap = {
 | SCF_SSL_VERSION_TLS12_STR | TLSv1.2 | TLS1.2版本 |
 | SCF_SSL_VERSION_TLS13_STR | TLSv1.3 | TLS1.3版本 |
 
+#### 1.1.15 RBAC 角色
+
+##### 定义
+
+```c++
+typedef enum SCFRbacRole {
+    SCF_RBAC_ROLE_UNKNOWN = 0,
+    SCF_RBAC_ROLE_MASTER = 1,
+    SCF_RBAC_ROLE_SLAVE = 2,
+} SCF_RBAC_ROLE;
+```
+
+##### 用途
+
+表示节点的 RBAC 角色。
+
+##### 属性说明
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_RBAC_ROLE_UNKNOWN | 0 | 未识别或未配置角色，不能用于新增或更新映射 |
+| SCF_RBAC_ROLE_MASTER | 1 | 主节点角色 |
+| SCF_RBAC_ROLE_SLAVE | 2 | 从节点角色 |
+
+#### 1.1.16 RBAC 角色来源
+
+##### 定义
+
+```c++
+typedef enum SCFRbacRoleSource {
+    SCF_RBAC_ROLE_SRC_NONE = 0,
+    SCF_RBAC_ROLE_SRC_CERT = 1,
+    SCF_RBAC_ROLE_SRC_MAPPING = 2,
+} SCF_RBAC_ROLE_SOURCE;
+```
+
+##### 用途
+
+表示 RBAC 角色的解析来源。
+
+##### 属性说明
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_RBAC_ROLE_SRC_NONE | 0 | 未获取到角色 |
+| SCF_RBAC_ROLE_SRC_CERT | 1 | 角色来自证书扩展 |
+| SCF_RBAC_ROLE_SRC_MAPPING | 2 | 角色来自节点角色映射 |
+
 
 ### 1.2 结构体
 
@@ -708,7 +758,7 @@ typedef int32_t (*SCF_PskFindSessionCb)(
 | SCF_ERRNO_RBAC_DENIED                 | 1962946562 | 资源访问被拒绝。                      |
 | SCF_ERRNO_RBAC_ROLE_UNKNOWN           | 1962946563 | 未能从证书或节点角色映射解析出角色。       |
 | SCF_ERRNO_RBAC_NODE_ID_EMPTY          | 1962946564 | 节点 ID 为空。                        |
-| SCF_ERRNO_RBAC_MAP_FULL               | 1962946565 | 节点角色映射已达到 `MAX_NODE_ROLE_MAP_SIZE`。 |
+| SCF_ERRNO_RBAC_MAP_FULL               | 1962946565 | 节点角色映射已达到上限。       |
 | SCF_ERRNO_RBAC_MAP_NOT_FOUND          | 1962946566 | 指定节点角色映射不存在。                 |
 | SCF_ERRNO_CERT_NODE_ID_ABSENT         | 1962946567 | 证书缺少 NodeId 自定义扩展。             |
 | SCF_ERRNO_CERT_ROLE_EXT_ABSENT        | 1962946568 | 证书缺少 RBAC 角色自定义扩展。            |
@@ -2167,16 +2217,30 @@ int32_t SCF_Write(SCF_PolicyObj *obj, const uint8_t *data, uint32_t dataLen, uin
 
 ### 2.6 RBAC 节点身份与角色
 
-本节接口用于从证书扩展或运行期映射表解析节点身份和 RBAC 角色。节点 ID 最大长度为
-`MAX_NODE_ID_LEN - 1` 字节，该长度是 SCF API 的约束，不是 X.509 标准限制；角色映射仅保存在当前进程的策略上下文中。
+本节接口用于从证书扩展或运行期映射表解析节点身份和 RBAC 角色。`MAX_NODE_ID_LEN` 的值为
+128，其中包含结尾空字符，因此节点 ID 的有效长度为 1～127 字节。该长度是 SCF API 的约束，不是
+X.509 标准限制；角色映射仅保存在当前进程的策略上下文中。
 NodeId 扩展的 OID 固定为 `1.3.6.1.4.1.2011.999.1`，Role 扩展的 OID 固定为
 `1.3.6.1.4.1.2011.999.2`。两者的 `extnValue` 都必须是一个 DER 编码的 `UTF8String`，而不是裸文本。
 当前实现不以 `critical` 标志作为解析条件；由于默认 OpenSSL 验证器未注册这两个自定义 OID，
 为避免未知 critical 扩展导致链校验失败，配置时应保持非 critical（不要写 `critical,`）。只有在验证器已注册并处理这两个 OID
 时，才可按其策略设置 critical，且仍必须保留 DER `UTF8String` 编码。
 
-例如，以下 OpenSSL 配置把 `node-cert` 和 `master` 分别编码为 DER UTF8String；`DER:` 后面的字节就是
-扩展 `extnValue` 的内容：
+扩展值可以使用 UTF-8 明文配置，OpenSSL 会将 `ASN1:UTF8String:` 后的文本编码为 DER
+UTF8String，无需手工转换为十六进制。以下完整命令会生成 RSA 私钥 `node.key` 和包含 NodeId、Role
+扩展请求的 CSR `node.csr`：
+
+```bash
+openssl req -new -newkey rsa:3072 -sha256 -nodes \
+    -keyout node.key -out node.csr -subj "/CN=node-cert" \
+    -addext "1.3.6.1.4.1.2011.999.1=ASN1:UTF8String:node-cert" \
+    -addext "1.3.6.1.4.1.2011.999.2=ASN1:UTF8String:master"
+```
+
+上述 `-nodes` 会生成未加密的私钥，应限制 `node.key` 的访问权限；如需口令保护私钥，去掉 `-nodes`。
+可使用 `openssl req -in node.csr -noout -text` 检查 CSR。签发证书时，CA 必须将这两个扩展从 CSR
+保留到最终证书中。如果必须使用十六进制，以下 OpenSSL 配置与上述明文配置等价；`DER:` 后面的字节
+就是扩展 `extnValue` 的内容：
 
 ```ini
 [ req ]
@@ -2197,10 +2261,13 @@ int32_t SCF_GetCertNodeId(const void *cert, char *nodeIdBuffer, size_t bufferLen
 
 从证书的 NodeId 自定义扩展读取节点 ID。
 
+证书必须包含唯一的 NodeId 扩展，扩展值必须是规范 DER 编码的 UTF8String；解码后必须是合法 UTF-8，
+长度为 1～127 字节且不含嵌入的空字符。本接口只解析扩展，不单独验证证书链、签名或有效期。
+
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| cert | [IN] | 是 | 证书句柄。 |
-| nodeIdBuffer | [OUT] | 是 | 节点 ID 输出缓冲区，长度至少为 2。 |
+| cert | [IN] | 是 | 证书句柄，通过[SCF_GetCurrentCert](#228-SCF_GetCurrentCert)或[SCF_GetPeerCert](#229-SCF_GetPeerCert)获取，使用完成后通过[SCF_FreeCert](#2210-SCF_FreeCert)释放。 |
+| nodeIdBuffer | [OUT] | 是 | 节点 ID 输出缓冲区，长度至少为 2，且必须大于节点 ID 的字节长度以容纳结尾空字符。 |
 | bufferLen | [IN] | 是 | 输出缓冲区长度。 |
 | nodeIdLen | [OUT] | 是 | 节点 ID 实际长度，不包含结尾空字符。 |
 
@@ -2218,10 +2285,13 @@ int32_t SCF_GetCertRbacRole(const void *cert, SCF_RBAC_ROLE *role);
 
 从证书的 RBAC 角色自定义扩展读取角色。扩展值 `master` 和 `slave` 不区分大小写。
 
+证书必须包含唯一的 Role 扩展，扩展值必须是规范 DER 编码的 UTF8String，解码后只能为 `master`
+或 `slave`。本接口只解析扩展，不单独验证证书链、签名或有效期。
+
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| cert | [IN] | 是 | 证书句柄。 |
-| role | [OUT] | 是 | 解析出的 `SCF_RBAC_ROLE_MASTER` 或 `SCF_RBAC_ROLE_SLAVE`。 |
+| cert | [IN] | 是 | 证书句柄，通过[SCF_GetCurrentCert](#228-SCF_GetCurrentCert)或[SCF_GetPeerCert](#229-SCF_GetPeerCert)获取，使用完成后通过[SCF_FreeCert](#2210-SCF_FreeCert)释放。 |
+| role | [OUT] | 是 | 解析出的节点角色，见[1.1.15 RBAC 角色](#1115-rbac-角色)。 |
 
 ##### 返回值
 
@@ -2237,15 +2307,19 @@ int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_
 
 新增或覆盖当前策略上下文中的节点 ID 到角色映射。
 
+单个策略上下文最多保存 4096 个不同节点 ID 的映射；在已达上限时仍可覆盖已有节点的角色。节点 ID
+必须以空字符结尾，有效长度为 1～127 字节；角色只能为 `SCF_RBAC_ROLE_MASTER` 或
+`SCF_RBAC_ROLE_SLAVE`。任一使用该上下文的连接成功建链后，映射表冻结，不再允许新增、覆盖或删除。
+
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
-| nodeId | [IN] | 是 | 非空且以空字符结尾的节点 ID。 |
-| role | [IN] | 是 | `SCF_RBAC_ROLE_MASTER` 或 `SCF_RBAC_ROLE_SLAVE`。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| nodeId | [IN] | 是 | 非空且以空字符结尾的节点 ID，有效长度为 1～127 字节。 |
+| role | [IN] | 是 | 节点角色，见[1.1.15 RBAC 角色](#1115-rbac-角色)；只允许 `SCF_RBAC_ROLE_MASTER` 或 `SCF_RBAC_ROLE_SLAVE`。 |
 
 ##### 返回值
 
-成功返回 `SCF_SUCCESS`；映射表达到 `MAX_NODE_ROLE_MAP_SIZE` 时返回 `SCF_ERRNO_RBAC_MAP_FULL`；任一使用该上下文的连接建链成功后返回 `SCF_ERRNO_RBAC_MAP_FROZEN`；参数非法时返回相应错误码。
+成功返回 `SCF_SUCCESS`；新增映射时映射表已达到 4096 条则返回 `SCF_ERRNO_RBAC_MAP_FULL`；任一使用该上下文的连接建链成功后返回 `SCF_ERRNO_RBAC_MAP_FROZEN`；参数非法时返回相应错误码。
 
 #### 2.6.4 SCF_RemoveNodeRoleMapping
 
@@ -2257,10 +2331,13 @@ int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId);
 
 删除当前策略上下文中的指定节点角色映射。
 
+节点 ID 必须以空字符结尾，有效长度为 1～127 字节，且必须存在于当前策略上下文的映射表中。任一使用该
+上下文的连接成功建链后，映射表冻结，不再允许删除。
+
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
-| nodeId | [IN] | 是 | 待删除的非空节点 ID。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| nodeId | [IN] | 是 | 待删除的节点 ID，必须以空字符结尾，有效长度为 1～127 字节。 |
 
 ##### 返回值
 
@@ -2276,16 +2353,21 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
 ```
 
 解析节点角色。传入证书时优先使用证书角色；证书没有角色扩展时，使用证书中的 NodeId 查询映射表。
-证书同时缺少角色和 NodeId 扩展时 fail closed，返回 `SCF_ERRNO_CERT_NODE_ID_ABSENT`，不会使用调用方传入的 `nodeId`；未传入证书时，直接使用 `nodeId` 查询映射表。
+证书同时缺少角色和 NodeId 扩展时，使用调用方传入的 `nodeId` 查询映射表；
+未传入证书时，直接使用 `nodeId` 查询映射表。
+传入证书时，证书句柄及其已存在的 Role、NodeId 扩展必须满足[2.6.1 SCF_GetCertNodeId](#261-SCF_GetCertNodeId)和
+[2.6.2 SCF_GetCertRbacRole](#262-SCF_GetCertRbacRole)的规格约束；未传入证书时，`nodeId` 必须以空字符结尾且有效长度为
+1～127 字节。映射查询只读，映射表冻结后仍可调用本接口。
 
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
-| cert | [IN] | 否 | 可选证书句柄；非空时优先使用证书中的角色和 NodeId。 |
-| nodeId | [IN] | 条件必选 | `cert` 为空时用于映射表查询；`cert` 非空时不会作为证书身份的替代。 |
-| role | [OUT] | 是 | 解析出的节点角色。 |
-| src | [OUT] | 是 | 角色来源：证书、映射表或无来源。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| cert | [IN] | 否 | 可选证书句柄，通过[SCF_GetCurrentCert](#228-SCF_GetCurrentCert)或[SCF_GetPeerCert](#229-SCF_GetPeerCert)获取，使用完成后通过[SCF_FreeCert](#2210-SCF_FreeCert)释放；非空时优先使用证书中的角色和 NodeId。 |
+| nodeId | [IN] | 条件必选 | `cert` 为空时用于映射表查询，必须以空字符结尾且有效长度为 1～127 字节；`cert` 非空时不会作为证书身份的替代。 |
+| role | [OUT] | 是 | 解析出的节点角色，见[1.1.15 RBAC 角色](#1115-rbac-角色)。 |
+| src | [OUT] | 是 | 角色来源，见[1.1.16 RBAC 角色来源](#1116-rbac-角色来源)。 |
 
 ##### 返回值
 
-成功返回 `SCF_SUCCESS`；证书同时缺少角色和 NodeId 扩展时返回 `SCF_ERRNO_CERT_NODE_ID_ABSENT`；未传入证书且映射不存在时返回 `SCF_ERRNO_RBAC_ROLE_UNKNOWN`；证书扩展解析失败时返回相应错误码。
+成功返回 `SCF_SUCCESS`；无法通过证书扩展或节点映射解析出角色时返回 `SCF_ERRNO_RBAC_ROLE_UNKNOWN`；
+证书扩展存在但编码或取值非法时返回相应错误码。

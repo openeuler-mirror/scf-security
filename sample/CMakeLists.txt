@@ -25,6 +25,8 @@ scf_enable_pie(client_main_new)
 scf_add_hardening_check(client_main_new)
 
 add_executable(server_main_new server_main_new.cpp)
+scf_enable_pie(server_main_new)
+scf_add_hardening_check(server_main_new)
 target_link_libraries(server_main_new PRIVATE scf)
 scf_enable_pie(server_main_new)
 scf_add_hardening_check(server_main_new)
