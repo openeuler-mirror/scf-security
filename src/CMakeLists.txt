@@ -61,6 +61,8 @@ target_link_libraries(
         Dependency::secure_c
 )
 
+scf_add_hardening_check(scf)
+
 # 所有 OpenSSL API 均已通过 dlopen 运行时加载，无需编译时链接。
 if (BUILD_FUZZ)
     target_link_libraries(scf PUBLIC Dependency::secodefuzz)

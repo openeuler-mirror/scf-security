@@ -39,6 +39,8 @@ constexpr uint32_t CHAR_MASK_LOW_4BITS = 0x0f;
 constexpr uint32_t CHAR_MASK_HIGH_4BITS = 0xf0;
 constexpr uint32_t SHORT_MASK_LOW_8BITS = 0x00ff;
 constexpr uint32_t SHORT_MASK_HIGH_8BITS = 0xff00;
+constexpr const char *SCF_OID_NODE_ID = "1.3.6.1.4.1.2011.999.1";   // 节点 ID 的 UTF8String 证书扩展 OID
+constexpr const char *SCF_OID_RBAC_ROLE = "1.3.6.1.4.1.2011.999.2"; // RBAC 角色的 UTF8String 证书扩展 OID
 }
 
 #endif // CONSTANT_DEF_H

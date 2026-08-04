@@ -12,6 +12,8 @@ macro(add_scf_fuzz NAME)
             Dependency::secure_c
             gcov
             -lasan)
+    scf_enable_pie(${NAME}_fuzz)
+    scf_add_hardening_check(${NAME}_fuzz)
     add_test(
             NAME ${NAME}_fuzz
             COMMAND
@@ -44,6 +46,8 @@ macro(add_fuzz NAME)
             Dependency::secure_c
             gcov
             -lasan)
+    scf_enable_pie(${NAME}_fuzz)
+    scf_add_hardening_check(${NAME}_fuzz)
     include_directories(
 #            ${PROJECT_SOURCE_DIR}/test/scfdemo/test_include
             ${PROJECT_SOURCE_DIR}/test/test_include

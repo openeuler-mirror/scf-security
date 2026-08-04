@@ -39,6 +39,13 @@ std::map<int32_t, std::string> errorMap = {
     {SCF_ERRNO_SYSTEM_TIME_ERROR, "System time error"},
     {SCF_ERRNO_FILE_PATH_ERROR, "File path error"},
     {SCF_ERRNO_READ_FILE_ERROR, "Read file error"},
+    // RBAC 模块
+    {SCF_ERRNO_RBAC_ROLE_UNKNOWN, "RBAC node role is unknown"},
+    {SCF_ERRNO_RBAC_MAP_FULL, "RBAC node role mapping is full"},
+    {SCF_ERRNO_RBAC_MAP_NOT_FOUND, "RBAC node role mapping is not found"},
+    {SCF_ERRNO_CERT_NODE_ID_ABSENT, "RBAC certificate node ID extension is absent"},
+    {SCF_ERRNO_CERT_ROLE_EXT_ABSENT, "RBAC certificate role extension is absent"},
+    {SCF_ERRNO_RBAC_MAP_FROZEN, "RBAC node role mapping is frozen"},
     // CAL 模块
     {SCF_ERRNO_INIT_HITLS_BSL, "Init HiTLS bsl error"},
     {SCF_ERRNO_INIT_HITLS_CRYPTO, "Init HiTLS crypto error"},
@@ -133,6 +140,7 @@ std::map<int32_t, std::string> errorMap = {
     {SCF_SSL_ERR_SET_EX_DATA, "SSL set extra data error"},
     {SCF_SSL_ERR_SESS_GET_CIPHER, "SSL session get cipher error"},
     {SCF_SSL_ERR_SESS_GET_PROTOCOL_VER, "SSL session get protocol version error"},
+    {SCF_SSL_ERR_CERT_EXT_ABSENT, "SSL certificate extension is absent"},
 };
 
 std::string GetErrorMessageInternal(int32_t errorCode)
