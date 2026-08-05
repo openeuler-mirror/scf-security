@@ -28,6 +28,7 @@ namespace scf {
 #define SCF_CRYPT_MD_UNKNOWN 0
 #define SCF_CRYPT_MD_SHA256 10006
 #define SCF_CRYPT_MD_SHA384 10007
+#define MAX_NODE_ID_LEN 128 // SCF API 约定的节点 ID 缓冲区上限：127 字节数据和结尾空字符
 
 /**
  * @ingroup  scf
@@ -153,6 +154,24 @@ typedef enum LogLevel {
     LOG_LEVEL_ERROR = 4,   // log level error
     LOG_LEVEL_CRITICAL = 5 // log level critical
 } LOG_LEVEL;
+
+typedef enum SCFRbacRole {
+    SCF_RBAC_ROLE_UNKNOWN = 0, // 未识别或未配置角色
+    SCF_RBAC_ROLE_MASTER = 1,  // 主节点角色
+    SCF_RBAC_ROLE_SLAVE = 2,   // 从节点角色
+} SCF_RBAC_ROLE;
+
+typedef enum SCFResourceAction {
+    SCF_RES_ACTION_UNKNOWN = 0, // 未知资源操作
+    SCF_RES_ACTION_APPLY = 1,   // 申请资源
+    SCF_RES_ACTION_RELEASE = 2, // 释放资源
+} SCF_RESOURCE_ACTION;
+
+typedef enum SCFRbacRoleSource {
+    SCF_RBAC_ROLE_SRC_NONE = 0,    // 未获取到角色
+    SCF_RBAC_ROLE_SRC_CERT = 1,    // 角色来自证书扩展
+    SCF_RBAC_ROLE_SRC_MAPPING = 2, // 角色来自节点角色映射
+} SCF_RBAC_ROLE_SOURCE;
 
 // 结构体定义
 typedef struct SCFFileCtx SCF_FILE_CTX;

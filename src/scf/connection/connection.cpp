@@ -28,6 +28,11 @@ namespace scf {
         CHECK_SCF_INIT_RET("SCF_Connect");
         CHECK_SCF_ADAPTOR_RET("SCF_Connect");
         int32_t ret = g_adaptor->Connect(obj);
+        if (ret == SCF_SUCCESS) {
+            FreezeNodeRoleMapping(obj->policyCtx);
+            CCSEC_LOG_DEBUG("|SCF_Connect|END|returnS||connection established successfully");
+            return SCF_SUCCESS;
+        }
         if (ret == SCF_SSL_ERR_WANT_WRITE || ret == SCF_SSL_ERR_WANT_READ) {
             // 此接口返回SCF_SSL_ERR_WANT_READ SCF_SSL_ERR_WANT_WRITE为合理错误场景，
             // 需要产品重试。读写接口本身为高频场景，经和下游产品讨论，不做日志打印，由错误码表达场景即可。
@@ -50,6 +55,11 @@ namespace scf {
         CHECK_SCF_INIT_RET("SCF_Accept");
         CHECK_SCF_ADAPTOR_RET("SCF_Accept");
         int32_t ret = g_adaptor->Accept(obj);
+        if (ret == SCF_SUCCESS) {
+            FreezeNodeRoleMapping(obj->policyCtx);
+            CCSEC_LOG_DEBUG("|SCF_Accept|END|returnS||connection established successfully");
+            return SCF_SUCCESS;
+        }
         if (ret == SCF_SSL_ERR_WANT_WRITE || ret == SCF_SSL_ERR_WANT_READ) {
             // 此接口返回SCF_SSL_ERR_WANT_READ SCF_SSL_ERR_WANT_WRITE为合理错误场景，
             // 需要产品重试。读写接口本身为高频场景，经和下游产品讨论，不做日志打印，由错误码表达场景即可。

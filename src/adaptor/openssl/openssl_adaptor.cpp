@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include "constant_def.h"
 #include "scf_errno.h"
 #include "scf_def.h"
 #include "scf_crypto_engine.h"

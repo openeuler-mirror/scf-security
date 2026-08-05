@@ -17,6 +17,7 @@
 #include <atomic>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <sys/time.h>
 #include "custom_logger.h"
 #include "scf_errno.h"
@@ -47,6 +48,9 @@ namespace scf {
         uint32_t keyUpdateTime;
         uint64_t keyUpdateTraffic;
         bool isNullVersion;
+        std::mutex nodeRoleMapMutex;
+        std::unordered_map<std::string, SCF_RBAC_ROLE> nodeRoleMap;
+        std::atomic_bool nodeRoleMapFrozen;
     };
 
     struct SCF_KEY_UPDATE_INFO {
@@ -109,6 +113,9 @@ namespace scf {
 
     int32_t ReadFileContent(const std::string &path, std::string &content);
 
+    // 建链成功后冻结节点角色映射，避免运行期角色变更影响已建立连接。
+    void FreezeNodeRoleMapping(SCF_PolicyCtx *ctx);
+
 #define CHECK_SCF_ADAPTOR_RET(msg)                                                                       \
     do {                                                                                                   \
         if (g_adaptor == nullptr) {                                                                        \
@@ -128,6 +135,7 @@ namespace scf {
 #define CHECK_SCF_INIT_RET(msg)                                                                          \
     do {                                                                                                   \
         if (!g_scfInitialized) {                                                                         \
+            CCSEC_LOG_ERROR("|" << (msg) << "|END|returnF||SCF is not initialized");                     \
             return SCF_ERRNO_NOT_INIT;                                                                   \
         }                                                                                                  \
     } while (0)
@@ -135,6 +143,7 @@ namespace scf {
 #define CHECK_SCF_INIT_POINTER(msg)                                                                      \
     do {                                                                                                   \
         if (!g_scfInitialized) {                                                                         \
+            CCSEC_LOG_ERROR("|" << (msg) << "|END|returnF||SCF is not initialized");                     \
             return nullptr;                                                                                \
         }                                                                                                  \
     } while (0)
