@@ -13,7 +13,6 @@
 
 #include <cstring>
 #include <new>
-
 #include "custom_logger.h"
 #include "scf.h"
 #include "scf_inner.h"

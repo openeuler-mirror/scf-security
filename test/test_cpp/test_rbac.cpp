@@ -14,16 +14,12 @@
 #include <gtest/gtest.h>
 #include <dlfcn.h>
 #include <unistd.h>
-
-#include <cstring>
 #include <vector>
-
-#include "constant_def.h"
-#include "lib_crypto_api.h"
 #include "openssl_adaptor.h"
 #include "scf.h"
 #include "scf_errno.h"
 #include "scf_inner.h"
+#include "securec.h"
 
 using namespace scf;
 
@@ -31,29 +27,9 @@ namespace test {
 constexpr size_t NODE_ID_BUFFER_SIZE = 128;
 constexpr uint32_t NODE_ROLE_MAP_CAPACITY = 4096;
 
-static unsigned char *GetExtensionData(void *cert, const char *oid, int *dataLen)
-{
-    auto &cryptoApi = LibCryptoApi::GetInstance();
-    auto *object = cryptoApi.OBJ_txt2obj(oid, 1);
-    if (object == nullptr) {
-        return nullptr;
-    }
-    int index = cryptoApi.X509_get_ext_by_OBJ(cert, object, -1);
-    cryptoApi.ASN1_OBJECT_free(object);
-    if (index < 0) {
-        return nullptr;
-    }
-    auto *extension = cryptoApi.X509_get_ext(cert, index);
-    auto *data = extension == nullptr ? nullptr : cryptoApi.X509_EXTENSION_get_data(extension);
-    if (data == nullptr) {
-        return nullptr;
-    }
-    *dataLen = cryptoApi.ASN1_STRING_length(data);
-    return const_cast<unsigned char *>(cryptoApi.ASN1_STRING_get0_data(data));
-}
-
 static AbstractTLSAdaptor **GetLibraryAdaptorSlot()
 {
+    // 公共 API 位于动态库中，测试必须替换动态库持有的 g_adaptor 才能让 stub 对 API 调用生效。
     static AbstractTLSAdaptor **slot = []() {
         Dl_info libraryInfo{};
         if (dladdr(reinterpret_cast<void *>(SCF_Connect), &libraryInfo) == 0) {
@@ -86,6 +62,7 @@ public:
     std::vector<int32_t> acceptResults;
 
 private:
+    // 按调用顺序返回握手结果，用于模拟 WANT_READ/WANT_WRITE 后建链成功。
     static int32_t Next(std::vector<int32_t> &results)
     {
         if (results.empty()) {
@@ -112,6 +89,7 @@ public:
 
     ~ScopedAdaptorOverride()
     {
+        // 每个用例结束后恢复真实 adaptor，避免全局状态污染后续用例。
         if (slot_ != nullptr) {
             *slot_ = previous_;
         } else {
@@ -147,6 +125,7 @@ protected:
 
     void *LoadRbacCert(const char *certName)
     {
+        // 证书由 PolicyObj 持有，返回的指针在 TearDown 释放 obj_ 前保持有效。
         EXPECT_EQ(SCF_SetPolicy(ctx_, SCF_ROLE_SERVER, SCF_VERIFY_DEFAULT, SCF_POLICY_HIGH), SCF_SUCCESS);
         std::string certPath = std::string(PROJECT_SOURCE_DIR) + "/test/test_data/certificate/" + certName;
         SCF_FILE_CTX *fileCtx = SCF_FileCtxNew();
@@ -188,17 +167,19 @@ TEST_F(TestRbac, NodeRoleMappingRejectsInvalidInput)
     char nodeId[2] = {0};
     size_t nodeIdLen = 0;
     char cert = 0;
-    std::memset(unterminatedNodeId, 'a', sizeof(unterminatedNodeId));
+    ASSERT_EQ(memset_s(unterminatedNodeId, sizeof(unterminatedNodeId), 'a', sizeof(unterminatedNodeId)), EOK);
     EXPECT_EQ(SCF_SetNodeRoleMapping(nullptr, "node-1", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, nullptr, SCF_RBAC_ROLE_MASTER), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_UNKNOWN), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", static_cast<SCF_RBAC_ROLE>(3)), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_RemoveNodeRoleMapping(nullptr, "node-1"), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, nullptr), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, unterminatedNodeId), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_GetCertNodeId(nullptr, nullptr, 0, nullptr), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetCertNodeId(&cert, nullptr, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetCertNodeId(&cert, nodeId, sizeof(nodeId), nullptr), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_GetCertNodeId(&cert, nodeId, 0, &nodeIdLen), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_GetCertRbacRole(nullptr, nullptr), SCF_ERRNO_NULL_INPUT);
 }
 
@@ -209,6 +190,52 @@ TEST_F(TestRbac, NodeRoleMappingRejectsEntriesBeyondCapacity)
         ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, nodeId.c_str(), SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
     }
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-overflow", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_RBAC_MAP_FULL);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-0", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+}
+
+TEST_F(TestRbac, CertificateNodeIdLengthOne)
+{
+    void *shortCert = LoadRbacCert("rbac_node_id_len_1_cert.pem");
+    ASSERT_NE(shortCert, nullptr);
+    size_t nodeIdLen = 0;
+    char nodeIdBuffer[NODE_ID_BUFFER_SIZE];
+    ASSERT_EQ(memset_s(nodeIdBuffer, sizeof(nodeIdBuffer), 'x', sizeof(nodeIdBuffer)), EOK);
+    EXPECT_EQ(SCF_GetCertNodeId(shortCert, nodeIdBuffer, 2, &nodeIdLen), SCF_SUCCESS);
+    EXPECT_EQ(nodeIdLen, 1U);
+    EXPECT_STREQ(nodeIdBuffer, "a");
+    EXPECT_EQ(nodeIdBuffer[1], '\0');
+}
+
+TEST_F(TestRbac, CertificateNodeIdLength127)
+{
+    void *maxCert = LoadRbacCert("rbac_node_id_len_127_cert.pem");
+    ASSERT_NE(maxCert, nullptr);
+    size_t nodeIdLen = 0;
+    char nodeIdBuffer[NODE_ID_BUFFER_SIZE];
+    ASSERT_EQ(memset_s(nodeIdBuffer, sizeof(nodeIdBuffer), 'x', sizeof(nodeIdBuffer)), EOK);
+    EXPECT_EQ(SCF_GetCertNodeId(maxCert, nodeIdBuffer, MAX_NODE_ID_LEN, &nodeIdLen), SCF_SUCCESS);
+    EXPECT_EQ(nodeIdLen, MAX_NODE_ID_LEN - 1);
+    EXPECT_EQ(std::string(nodeIdBuffer, nodeIdLen), std::string(MAX_NODE_ID_LEN - 1, 'b'));
+    EXPECT_EQ(nodeIdBuffer[MAX_NODE_ID_LEN - 1], '\0');
+}
+
+TEST_F(TestRbac, CertificateNodeIdLength128IsRejected)
+{
+    void *overLimitCert = LoadRbacCert("rbac_node_id_len_128_cert.pem");
+    ASSERT_NE(overLimitCert, nullptr);
+    size_t nodeIdLen = 0;
+    char nodeIdBuffer[NODE_ID_BUFFER_SIZE] = {0};
+    EXPECT_EQ(SCF_GetCertNodeId(overLimitCert, nodeIdBuffer, MAX_NODE_ID_LEN, &nodeIdLen),
+        SCF_SSL_ERR_PARSE_CERT);
+}
+
+TEST_F(TestRbac, CertificateNodeIdEmptyIsRejected)
+{
+    void *cert = LoadRbacCert("rbac_node_id_empty_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    char nodeIdBuffer[NODE_ID_BUFFER_SIZE] = {0};
+    size_t nodeIdLen = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeIdBuffer, sizeof(nodeIdBuffer), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
 }
 
 TEST_F(TestRbac, NodeRoleMappingIsFrozenOnlyAfterSuccessfulConnect)
@@ -225,6 +252,7 @@ TEST_F(TestRbac, NodeRoleMappingIsFrozenOnlyAfterSuccessfulConnect)
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
     EXPECT_EQ(SCF_Connect(obj_), SCF_SUCCESS);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_RBAC_MAP_FROZEN);
+    EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, "node-1"), SCF_ERRNO_RBAC_MAP_FROZEN);
 }
 
 TEST_F(TestRbac, NodeRoleMappingIsFrozenOnlyAfterSuccessfulAccept)
@@ -289,7 +317,7 @@ TEST_F(TestRbac, CertificateWithoutRbacExtensionsReturnsUnknownWithoutNodeId)
 TEST_F(TestRbac, NodeRoleLookupRejectsInvalidInput)
 {
     char unterminatedNodeId[NODE_ID_BUFFER_SIZE];
-    std::memset(unterminatedNodeId, 'a', sizeof(unterminatedNodeId));
+    ASSERT_EQ(memset_s(unterminatedNodeId, sizeof(unterminatedNodeId), 'a', sizeof(unterminatedNodeId)), EOK);
     SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
     SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
     EXPECT_EQ(SCF_GetNodeRbacRole(nullptr, nullptr, "node-1", &role, &src), SCF_ERRNO_NULL_INPUT);
@@ -337,6 +365,23 @@ TEST_F(TestRbac, CertificateSlaveRoleIsReturned)
     EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_CERT);
 }
 
+TEST_F(TestRbac, CertificateRejectsUnknownRole)
+{
+    void *cert = LoadRbacCert("rbac_unknown_role_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    EXPECT_EQ(SCF_GetCertRbacRole(cert, &role), SCF_SSL_ERR_PARSE_CERT);
+}
+
+TEST_F(TestRbac, CertificateRoleIsCaseInsensitive)
+{
+    void *cert = LoadRbacCert("rbac_mixed_case_role_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    EXPECT_EQ(SCF_GetCertRbacRole(cert, &role), SCF_SUCCESS);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_MASTER);
+}
+
 TEST_F(TestRbac, RoleMappingFallbackForCertificateWithoutRoleExtension)
 {
     void *cert = LoadRbacCert("rbac_node_only_cert.pem");
@@ -381,6 +426,9 @@ TEST_F(TestRbac, CertificateRejectsDuplicateNodeIdExtension)
     char nodeId[NODE_ID_BUFFER_SIZE] = {0};
     size_t nodeIdLen = 0;
     EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_SSL_ERR_PARSE_CERT);
 }
 
 TEST_F(TestRbac, CertificateRejectsDuplicateRoleExtension)
@@ -393,15 +441,8 @@ TEST_F(TestRbac, CertificateRejectsDuplicateRoleExtension)
 
 TEST_F(TestRbac, CertificateNodeIdRejectsEmbeddedNull)
 {
-    void *cert = LoadRbacCert("rbac_node_only_cert.pem");
+    void *cert = LoadRbacCert("rbac_node_id_embedded_null_cert.pem");
     ASSERT_NE(cert, nullptr);
-    int dataLen = 0;
-    unsigned char *data = GetExtensionData(cert, SCF_OID_NODE_ID, &dataLen);
-    ASSERT_NE(data, nullptr);
-    ASSERT_EQ(dataLen, 13);
-    const unsigned char nodeIdWithNull[] = {'a', 'd', 'm', 'i', 'n', 0, 's', 'u', 'f', 'f', 'x'};
-    std::memcpy(data + 2, nodeIdWithNull, sizeof(nodeIdWithNull));
-
     char nodeId[NODE_ID_BUFFER_SIZE] = {0};
     size_t nodeIdLen = 0;
     EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
@@ -416,14 +457,8 @@ TEST_F(TestRbac, CertificateNodeIdRejectsEmbeddedNull)
 
 TEST_F(TestRbac, CertificateExtensionRejectsNonCanonicalLongFormLength)
 {
-    void *cert = LoadRbacCert("rbac_cert.pem");
+    void *cert = LoadRbacCert("rbac_noncanonical_length_cert.pem");
     ASSERT_NE(cert, nullptr);
-    int dataLen = 0;
-    unsigned char *data = GetExtensionData(cert, SCF_OID_NODE_ID, &dataLen);
-    ASSERT_NE(data, nullptr);
-    ASSERT_EQ(dataLen, 11);
-    data[1] = 0x81U;
-    data[2] = 8U;
     char nodeId[NODE_ID_BUFFER_SIZE] = {0};
     size_t nodeIdLen = 0;
     EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
@@ -431,15 +466,8 @@ TEST_F(TestRbac, CertificateExtensionRejectsNonCanonicalLongFormLength)
 
 TEST_F(TestRbac, CertificateExtensionRejectsLeadingZeroLengthOctet)
 {
-    void *cert = LoadRbacCert("rbac_cert.pem");
+    void *cert = LoadRbacCert("rbac_leading_zero_length_cert.pem");
     ASSERT_NE(cert, nullptr);
-    int dataLen = 0;
-    unsigned char *data = GetExtensionData(cert, SCF_OID_NODE_ID, &dataLen);
-    ASSERT_NE(data, nullptr);
-    ASSERT_EQ(dataLen, 11);
-    data[1] = 0x82U;
-    data[2] = 0;
-    data[3] = 7U;
     char nodeId[NODE_ID_BUFFER_SIZE] = {0};
     size_t nodeIdLen = 0;
     EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
@@ -447,13 +475,8 @@ TEST_F(TestRbac, CertificateExtensionRejectsLeadingZeroLengthOctet)
 
 TEST_F(TestRbac, CertificateExtensionRejectsInvalidUtf8)
 {
-    void *cert = LoadRbacCert("rbac_cert.pem");
+    void *cert = LoadRbacCert("rbac_invalid_utf8_cert.pem");
     ASSERT_NE(cert, nullptr);
-    int dataLen = 0;
-    unsigned char *data = GetExtensionData(cert, SCF_OID_NODE_ID, &dataLen);
-    ASSERT_NE(data, nullptr);
-    ASSERT_EQ(dataLen, 11);
-    data[2] = 0xC0U;
     char nodeId[NODE_ID_BUFFER_SIZE] = {0};
     size_t nodeIdLen = 0;
     EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
