@@ -271,7 +271,7 @@ TEST_F(TestRbac, NodeRoleMappingRequiresInitializedScf)
     ASSERT_EQ(SCF_Init(SCF_INIT_FLAG_OPENSSL, libPath), SCF_SUCCESS);
 }
 
-TEST_F(TestRbac, CertificateWithoutRbacExtensionsReturnsAbsentAndUnknown)
+TEST_F(TestRbac, CertificateWithoutRbacExtensionsReturnsUnknownWithoutNodeId)
 {
     void *cert = LoadRbacCert("test_cert/client.pem");
     ASSERT_NE(cert, nullptr);
@@ -281,17 +281,23 @@ TEST_F(TestRbac, CertificateWithoutRbacExtensionsReturnsAbsentAndUnknown)
     SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
     EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_CERT_NODE_ID_ABSENT);
     EXPECT_EQ(SCF_GetCertRbacRole(cert, &role), SCF_ERRNO_CERT_ROLE_EXT_ABSENT);
-    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_ERRNO_CERT_NODE_ID_ABSENT);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_ERRNO_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_NONE);
 }
 
-TEST_F(TestRbac, NodeRoleLookupRejectsNullOutput)
+TEST_F(TestRbac, NodeRoleLookupRejectsInvalidInput)
 {
+    char unterminatedNodeId[NODE_ID_BUFFER_SIZE];
+    std::memset(unterminatedNodeId, 'a', sizeof(unterminatedNodeId));
     SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
     SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
     EXPECT_EQ(SCF_GetNodeRbacRole(nullptr, nullptr, "node-1", &role, &src), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", nullptr, &src), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", &role, nullptr), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, nullptr, &role, &src), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "", &role, &src), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, unterminatedNodeId, &role, &src), SCF_ERRNO_INVALID_PARAM);
 }
 
 TEST_F(TestRbac, CertificateExtensionsAndRolePriority)
@@ -344,16 +350,16 @@ TEST_F(TestRbac, RoleMappingFallbackForCertificateWithoutRoleExtension)
     EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_MAPPING);
 }
 
-TEST_F(TestRbac, CertificateWithoutIdentityCannotUseCallerNodeId)
+TEST_F(TestRbac, CertificateWithoutIdentityUsesCallerNodeId)
 {
     void *cert = LoadRbacCert("test_cert/client.pem");
     ASSERT_NE(cert, nullptr);
     SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
     SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
     ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-input", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
-    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, "node-input", &role, &src), SCF_ERRNO_CERT_NODE_ID_ABSENT);
-    EXPECT_EQ(role, SCF_RBAC_ROLE_UNKNOWN);
-    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_NONE);
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, "node-input", &role, &src), SCF_SUCCESS);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_MASTER);
+    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_MAPPING);
 }
 
 TEST_F(TestRbac, CertificateNodeIdDoesNotUseCallerNodeId)
@@ -451,5 +457,11 @@ TEST_F(TestRbac, CertificateExtensionRejectsInvalidUtf8)
     char nodeId[NODE_ID_BUFFER_SIZE] = {0};
     size_t nodeIdLen = 0;
     EXPECT_EQ(SCF_GetCertNodeId(cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_SSL_ERR_PARSE_CERT);
+
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_SSL_ERR_PARSE_CERT);
+    EXPECT_EQ(role, SCF_RBAC_ROLE_UNKNOWN);
+    EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_NONE);
 }
 }

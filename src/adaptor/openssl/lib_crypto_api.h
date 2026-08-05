@@ -128,7 +128,7 @@ public:
     DlFun<int, void *, const void *, int> EVP_PKEY_CTX_add1_hkdf_info;
 
     // 编码
-    DlFun<void *, void *, const unsigned char **, long> d2i_PUBKEY;
+    DlFun<void *, void **, const unsigned char **, long> d2i_PUBKEY;
 
     // 随机数
     DlFun<int, void *, int> RAND_bytes;

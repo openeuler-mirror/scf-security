@@ -2363,7 +2363,7 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
 |---|---|---|---|
 | ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
 | cert | [IN] | 否 | 可选证书句柄，通过[SCF_GetCurrentCert](#228-SCF_GetCurrentCert)或[SCF_GetPeerCert](#229-SCF_GetPeerCert)获取，使用完成后通过[SCF_FreeCert](#2210-SCF_FreeCert)释放；非空时优先使用证书中的角色和 NodeId。 |
-| nodeId | [IN] | 条件必选 | `cert` 为空时用于映射表查询，必须以空字符结尾且有效长度为 1～127 字节；`cert` 非空时不会作为证书身份的替代。 |
+| nodeId | [IN] | 条件必选 | `cert` 为空或者证书中没有角色和NodeId扩展时用于映射表查询，必须以空字符结尾且有效长度为 1～127 字节；`cert` 非空且有角色或NodeId扩展时不会作为证书身份的替代。 |
 | role | [OUT] | 是 | 解析出的节点角色，见[1.1.15 RBAC 角色](#1115-rbac-角色)。 |
 | src | [OUT] | 是 | 角色来源，见[1.1.16 RBAC 角色来源](#1116-rbac-角色来源)。 |
 

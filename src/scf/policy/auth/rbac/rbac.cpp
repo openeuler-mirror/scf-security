@@ -190,18 +190,18 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
         CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||null input");
         return SCF_ERRNO_NULL_INPUT;
     }
+    if (nodeId != nullptr && !IsValidNodeId(nodeId)) {
+        CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||invalid node id");
+        return SCF_ERRNO_INVALID_PARAM;
+    }
     CHECK_SCF_INIT_RET("SCF_GetNodeRbacRole");
     *role = SCF_RBAC_ROLE_UNKNOWN;
     *src = SCF_RBAC_ROLE_SRC_NONE;
     const char *mappingNodeId = nodeId;
     char certNodeId[MAX_NODE_ID_LEN] = {0};
     if (cert != nullptr) {
-        int32_t certRoleRet = SCF_GetCertRbacRole(cert, role);
-        if (certRoleRet == SCF_SUCCESS) {
-            *src = SCF_RBAC_ROLE_SRC_CERT;
-            CCSEC_LOG_DEBUG("|SCF_GetNodeRbacRole|END|returnS||get node role from certificate success");
-            return SCF_SUCCESS;
-        }
+        SCF_RBAC_ROLE certRole = SCF_RBAC_ROLE_UNKNOWN;
+        int32_t certRoleRet = SCF_GetCertRbacRole(cert, &certRole);
         if (certRoleRet != SCF_SUCCESS && certRoleRet != SCF_ERRNO_CERT_ROLE_EXT_ABSENT) {
             CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate role failed, ret:" << certRoleRet);
             return certRoleRet;
@@ -213,10 +213,12 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
         } else if (certNodeIdRet != SCF_ERRNO_CERT_NODE_ID_ABSENT) {
             CCSEC_LOG_ERROR("|SCF_GetNodeRbacRole|END|returnF||get certificate node id failed, ret:" << certNodeIdRet);
             return certNodeIdRet;
-        } else {
-            CCSEC_LOG_ERROR(
-                "|SCF_GetNodeRbacRole|END|returnF||certificate node id extension is absent; refusing input node id");
-            return SCF_ERRNO_CERT_NODE_ID_ABSENT;
+        }
+        if (certRoleRet == SCF_SUCCESS) {
+            *role = certRole;
+            *src = SCF_RBAC_ROLE_SRC_CERT;
+            CCSEC_LOG_DEBUG("|SCF_GetNodeRbacRole|END|returnS||get node role from certificate success");
+            return SCF_SUCCESS;
         }
     }
     if (GetMappingRole(ctx, mappingNodeId, role) != SCF_SUCCESS) {
