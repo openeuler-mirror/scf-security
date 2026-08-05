@@ -12,6 +12,7 @@
  */
 
 #include <cstring>
+#include <new>
 
 #include "custom_logger.h"
 #include "scf.h"
@@ -154,7 +155,12 @@ int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_
         CCSEC_LOG_ERROR("|SCF_SetNodeRoleMapping|END|returnF||node role map is full");
         return SCF_ERRNO_RBAC_MAP_FULL;
     }
-    ctx->nodeRoleMap[nodeId] = role;
+    try {
+        ctx->nodeRoleMap[nodeId] = role;
+    } catch (const std::bad_alloc &) {
+        CCSEC_LOG_ERROR("|SCF_SetNodeRoleMapping|END|returnF||memory allocation failed");
+        return SCF_ERRNO_MEM_ALLOC;
+    }
     CCSEC_LOG_DEBUG("|SCF_SetNodeRoleMapping|END|returnS||set node role mapping success");
     return SCF_SUCCESS;
 }
