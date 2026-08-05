@@ -17,13 +17,12 @@
 ### build.sh --- build project
 ###
 ### Usage:
-###     build.sh <target> [-D] [-C] [-t <target>]
+###     build.sh <target> [-D] [-t <target>]
 ###
 ### Options:
 ###     <target>        Build target used by Make
 ###     -h | --help     Show help message
 ###     -D | --debug    Build debug version
-###     -C | --coverage Generate coverage report files
 ###     -t | --target   Specifying build target, default is `all`
 ###                     Supported targets:
 ###                         `all`              build all target in source code
@@ -138,26 +137,22 @@ function build_cicd_default() {
 function packaging_src() {
     echo "==> Packaging source into: $RPM_SRC_TARBALL"
     TMPDIR=$(mktemp -d)
-    trap 'rm -rf "$TMPDIR"' EXIT
     STAGE="$TMPDIR/${RPM_PKG_NAME}-${RPM_PKG_VERSION}"
     mkdir -p "$STAGE"
-    rsync -a \
-      --exclude '.git' \
-      --exclude '.idea' \
-      --exclude 'build' \
-      --exclude 'external' \
-      --exclude 'output' \
-      --exclude 'package' \
-      --exclude '*.o' \
-      --exclude '*.a' \
-      --exclude '*.so' \
-      --exclude '*.so.*' \
-      --exclude '*.swp' \
-      --exclude '*~' \
-      "$PROJECT_ROOT_DIR"/ "$STAGE"/
-    tar -C "$TMPDIR" -czf "$RPM_SRC_TARBALL" "${RPM_PKG_NAME}-${RPM_PKG_VERSION}"
+    if ! git -C "$PROJECT_ROOT_DIR" ls-files -z > "$TMPDIR/tracked-files"; then
+        rm -rf "$TMPDIR"
+        return 1
+    fi
+    if ! rsync -a --from0 --files-from="$TMPDIR/tracked-files" --ignore-missing-args \
+      "$PROJECT_ROOT_DIR"/ "$STAGE"/; then
+        rm -rf "$TMPDIR"
+        return 1
+    fi
+    if ! tar -C "$TMPDIR" -czf "$RPM_SRC_TARBALL" "${RPM_PKG_NAME}-${RPM_PKG_VERSION}"; then
+        rm -rf "$TMPDIR"
+        return 1
+    fi
     rm -rf "$TMPDIR"
-    trap - EXIT
 }
 
 function generate_checksum() {
@@ -182,9 +177,9 @@ function build_rpm() {
     mkdir -p "$RPMBUILD_ROOT"/{SPECS,BUILD,BUILDROOT}
     cp -f "$SPEC_FILE" "$RPMBUILD_ROOT/SPECS/"
     echo "==> Running rpmbuild"
-    rpmbuild -ba "$SPEC_FILE" \
+    rpmbuild -ba "$RPMBUILD_ROOT/SPECS/$(basename "$SPEC_FILE")" \
       --define "_sourcedir $RPMBUILD_SRC" \
-      --define "_specdir $PROJECT_ROOT_DIR/rpm" \
+      --define "_specdir $RPMBUILD_ROOT/SPECS" \
       --define "_srcrpmdir $PROJECT_ROOT_DIR/package/srpm" \
       --define "_rpmdir $PROJECT_ROOT_DIR/package/rpm" \
       --define "_builddir $RPMBUILD_ROOT/BUILD" \
@@ -302,13 +297,13 @@ function parse_args() {
                 exit 1
             fi
             ;;
-        -C | --coverage)
-            enable_coverage='On'
-            shift
-            ;;
         -c | --clean)
-            clean "$2"  # 清理构建目录
-            shift
+            clean "${2:-}"  # 清理构建目录
+            exit 0
+            ;;
+        -*)
+            echo "Error: Unknown option: $1" >&2
+            exit 1
             ;;
         *)
             [ "$1" != "" ] &&build_target="$1"

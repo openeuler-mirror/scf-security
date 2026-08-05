@@ -59,6 +59,18 @@ public:
     DlFun<const void *, const void *> X509_get0_serialNumber;
     DlFun<int, const void *> X509_verify_cert;
     DlFun<int, void *> X509_STORE_CTX_get_error;
+    DlFun<void *, const char *, int> OBJ_txt2obj;
+    DlFun<void, void *> ASN1_OBJECT_free;
+    DlFun<int, const void *, const void *, int> X509_get_ext_by_OBJ;
+    DlFun<void *, const void *, int> X509_get_ext;
+    DlFun<void *, const void *> X509_EXTENSION_get_data;
+    DlFun<const unsigned char *, const void *> ASN1_STRING_get0_data;
+    DlFun<int, const void *> ASN1_STRING_length;
+    DlFun<void *, void *, const unsigned char **, long> d2i_ASN1_UTF8STRING;
+    DlFun<int, const void *, unsigned char **> i2d_ASN1_UTF8STRING;
+    DlFun<int, unsigned char **, const void *> ASN1_STRING_to_UTF8;
+    DlFun<void, void *> ASN1_UTF8STRING_free;
+    DlFun<void, void *, const char *, int> CRYPTO_free;
     DlFun<void *, void *, int> BIO_new_mem_buf;
     DlFun<int, void *> BIO_free;
     DlFun<void, void *> EVP_PKEY_free;
@@ -133,10 +145,12 @@ public:
 private:
     uint32_t LoadAll();
     uint32_t LoadCoreSymbols();
+    uint32_t LoadCryptoAlgorithmSymbols();
     uint32_t LoadPkeySymbols();
 
     void UnLoadAll();
     void UnloadCoreSymbols();
+    void UnloadCryptoAlgorithmSymbols();
     void UnloadPkeySymbols();
 
     uint64_t versionNum_ = 0;

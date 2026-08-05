@@ -11,9 +11,13 @@ message(STATUS "Current CMake source directory===: ${CMAKE_CURRENT_SOURCE_DIR}")
 message(STATUS "Current CMake binary directory====: ${CMAKE_CURRENT_BINARY_DIR}")
 add_executable(scf_tls_test_all ${ALL_SOURCES})
 target_link_libraries(
-        scf_tls_test_all PRIVATE SCF::scf Dependency::gtest Dependency::secure_c -L/usr/lib/gcc/aarch64-openEuler-linux/12/libasan.so -lasan
-        -fsanitize=address -lasan
+        scf_tls_test_all PRIVATE SCF::scf Dependency::gtest Dependency::secure_c
 )
+scf_enable_pie(scf_tls_test_all)
+scf_add_hardening_check(scf_tls_test_all)
+if (BUILD_ASAN)
+    scf_enable_asan(scf_tls_test_all)
+endif ()
 
 target_include_directories(scf_tls_test_all
         PRIVATE
@@ -23,6 +27,7 @@ target_include_directories(scf_tls_test_all
         ${PROJECT_SOURCE_DIR}/src/callback
         ${PROJECT_SOURCE_DIR}/src/adaptor/base
         ${PROJECT_SOURCE_DIR}/src/adaptor/include
+        ${PROJECT_SOURCE_DIR}/src/adaptor/openssl
         ${PROJECT_SOURCE_DIR}/src/common/constant
         ${PROJECT_SOURCE_DIR}/src/common/util
 )
@@ -36,7 +41,6 @@ target_compile_definitions(scf_tls_test_all PRIVATE PROJECT_SOURCE_DIR="${PROJEC
 
 add_custom_target(build_test
         COMMAND env
-        LD_PRELOAD=/usr/lib/gcc/aarch64-openEuler-linux/12/libasan.so
         LD_LIBRARY_PATH=${PROJECT_SOURCE_DIR}/output/scf/lib64:${CMAKE_DEPENDENCY_LIBDIR}:$LD_LIBRARY_PATH
         ${PROJECT_SOURCE_DIR}/build/test/scf_tls_test_all --gtest_output=xml:${PROJECT_SOURCE_DIR}/build/test_results.xml
         DEPENDS

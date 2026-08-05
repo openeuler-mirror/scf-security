@@ -115,6 +115,8 @@ public:
 
     uint8_t *GetCertSerialNumber(const void *cert, uint32_t *dataLen) override;
 
+    int32_t GetCertExtensionByOid(const void *cert, const char *oid, std::string &value) override;
+
     int32_t GetCipherSuites(SCF_PolicyCtx *ctx, uint16_t *data, uint32_t dataLen,
         uint32_t *cipherSuitesSize) override;
 

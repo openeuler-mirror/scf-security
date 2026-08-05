@@ -142,14 +142,34 @@ uint32_t LibCryptoApi::LoadCoreSymbols()
     ret |= CONNECTOR_SELF_DLSYM(X509_get0_serialNumber);
     ret |= CONNECTOR_SELF_DLSYM(X509_verify_cert);
     ret |= CONNECTOR_SELF_DLSYM(X509_STORE_CTX_get_error);
+    ret |= CONNECTOR_SELF_DLSYM(OBJ_txt2obj);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_OBJECT_free);
+    ret |= CONNECTOR_SELF_DLSYM(X509_get_ext_by_OBJ);
+    ret |= CONNECTOR_SELF_DLSYM(X509_get_ext);
+    ret |= CONNECTOR_SELF_DLSYM(X509_EXTENSION_get_data);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_STRING_get0_data);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_STRING_length);
+    ret |= CONNECTOR_SELF_DLSYM(d2i_ASN1_UTF8STRING);
+    ret |= CONNECTOR_SELF_DLSYM(i2d_ASN1_UTF8STRING);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_STRING_to_UTF8);
+    ret |= CONNECTOR_SELF_DLSYM(ASN1_UTF8STRING_free);
+    ret |= CONNECTOR_SELF_DLSYM(CRYPTO_free);
     ret |= CONNECTOR_SELF_DLSYM(BIO_new_mem_buf);
     ret |= CONNECTOR_SELF_DLSYM(BIO_free);
     ret |= CONNECTOR_SELF_DLSYM(EVP_PKEY_free);
-    ret |= CONNECTOR_SELF_DLSYM(EVP_sha256);
-    ret |= CONNECTOR_SELF_DLSYM(EVP_sha384);
     ret |= CONNECTOR_SELF_DLSYM(ERR_get_error);
     ret |= CONNECTOR_SELF_DLSYM(ERR_error_string);
     ret |= CONNECTOR_SELF_DLSYM(ERR_print_errors_cb);
+    ret |= LoadCryptoAlgorithmSymbols();
+    ret |= CONNECTOR_SELF_DLSYM(OpenSSL_version);
+    return ret;
+}
+
+uint32_t LibCryptoApi::LoadCryptoAlgorithmSymbols()
+{
+    uint32_t ret = SCF_SUCCESS;
+    ret |= CONNECTOR_SELF_DLSYM(EVP_sha256);
+    ret |= CONNECTOR_SELF_DLSYM(EVP_sha384);
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_128_gcm);
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_256_gcm);
     ret |= CONNECTOR_SELF_DLSYM(EVP_aes_128_ccm);
@@ -175,7 +195,6 @@ uint32_t LibCryptoApi::LoadCoreSymbols()
         ret |= SelfDlSym("EVP_MD_size", EVP_MD_get_size);
     }
     ret |= CONNECTOR_SELF_DLSYM(HMAC);
-    ret |= CONNECTOR_SELF_DLSYM(OpenSSL_version);
     return ret;
 }
 
@@ -231,14 +250,32 @@ void LibCryptoApi::UnloadCoreSymbols()
     X509_get0_serialNumber.Reset();
     X509_verify_cert.Reset();
     X509_STORE_CTX_get_error.Reset();
+    OBJ_txt2obj.Reset();
+    ASN1_OBJECT_free.Reset();
+    X509_get_ext_by_OBJ.Reset();
+    X509_get_ext.Reset();
+    X509_EXTENSION_get_data.Reset();
+    ASN1_STRING_get0_data.Reset();
+    ASN1_STRING_length.Reset();
+    d2i_ASN1_UTF8STRING.Reset();
+    i2d_ASN1_UTF8STRING.Reset();
+    ASN1_STRING_to_UTF8.Reset();
+    ASN1_UTF8STRING_free.Reset();
+    CRYPTO_free.Reset();
     BIO_new_mem_buf.Reset();
     BIO_free.Reset();
     EVP_PKEY_free.Reset();
-    EVP_sha256.Reset();
-    EVP_sha384.Reset();
     ERR_get_error.Reset();
     ERR_error_string.Reset();
     ERR_print_errors_cb.Reset();
+    UnloadCryptoAlgorithmSymbols();
+    OpenSSL_version.Reset();
+}
+
+void LibCryptoApi::UnloadCryptoAlgorithmSymbols()
+{
+    EVP_sha256.Reset();
+    EVP_sha384.Reset();
     EVP_aes_128_gcm.Reset();
     EVP_aes_256_gcm.Reset();
     EVP_aes_128_ccm.Reset();
@@ -260,7 +297,6 @@ void LibCryptoApi::UnloadCoreSymbols()
     EVP_DigestFinal_ex.Reset();
     EVP_MD_get_size.Reset();
     HMAC.Reset();
-    OpenSSL_version.Reset();
 }
 
 void LibCryptoApi::UnloadPkeySymbols()
