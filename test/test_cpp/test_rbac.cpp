@@ -282,6 +282,14 @@ TEST_F(TestRbac, RbacSr01ErrorsHaveMessages)
     EXPECT_STREQ(GetErrorMessage(SCF_SSL_ERR_CERT_EXT_ABSENT), "SSL certificate extension is absent");
 }
 
+TEST_F(TestRbac, RbacSr02ErrorsHaveMessages)
+{
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_NOT_FOUND), "RBAC policy rule is not found");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_FULL), "RBAC policy rule list is full");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_DUPLICATE), "RBAC policy rule is duplicated");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_INVALID), "RBAC policy rule is invalid");
+}
+
 TEST_F(TestRbac, NodeRoleMappingRequiresInitializedScf)
 {
     SCF_DeInit();
@@ -486,5 +494,62 @@ TEST_F(TestRbac, CertificateExtensionRejectsInvalidUtf8)
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &role, &src), SCF_SSL_ERR_PARSE_CERT);
     EXPECT_EQ(role, SCF_RBAC_ROLE_UNKNOWN);
     EXPECT_EQ(src, SCF_RBAC_ROLE_SRC_NONE);
+}
+
+TEST_F(TestRbac, MasterNodesCanBeListedAndQueried)
+{
+    char masterNodes[2][MAX_NODE_ID_LEN] = {{0}};
+    uint32_t actualCount = 0;
+    bool isMaster = false;
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "master-1", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "master-2", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "slave-1", SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, 1, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 1U);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, 2, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 2U);
+    EXPECT_EQ(SCF_IsMasterNode(ctx_, "master-1", &isMaster), SCF_SUCCESS);
+    EXPECT_TRUE(isMaster);
+    EXPECT_EQ(SCF_IsMasterNode(ctx_, "slave-1", &isMaster), SCF_SUCCESS);
+    EXPECT_FALSE(isMaster);
+    EXPECT_EQ(SCF_IsMasterNode(ctx_, "", &isMaster), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, 0, &actualCount), SCF_ERRNO_INVALID_PARAM);
+}
+
+TEST_F(TestRbac, PolicyRulesSupportCrudAndValidation)
+{
+    SCF_PolicyRule rules[2];
+    uint32_t actualCount = 0;
+    uint32_t firstRuleId = 0;
+    uint32_t secondRuleId = 0;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &firstRuleId), SCF_SUCCESS);
+    EXPECT_NE(firstRuleId, 0U);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "*", SCF_RES_TYPE_ALL, SCF_RES_ACTION_RELEASE,
+        SCF_POLICY_EFFECT_DENY, &secondRuleId), SCF_SUCCESS);
+    EXPECT_NE(secondRuleId, firstRuleId);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &actualCount), SCF_ERRNO_RBAC_POLICY_DUPLICATE);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 1, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 1U);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 2, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 2U);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, firstRuleId), SCF_SUCCESS);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, firstRuleId), SCF_ERRNO_RBAC_POLICY_NOT_FOUND);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, 0), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "*", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &firstRuleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", 0, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &firstRuleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, 4,
+        SCF_POLICY_EFFECT_ALLOW, &firstRuleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 0, &actualCount), SCF_ERRNO_INVALID_PARAM);
+}
+
+TEST_F(TestRbac, EnableRbacRejectsNullContext)
+{
+    EXPECT_EQ(SCF_EnableRbac(nullptr, true), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_EnableRbac(ctx_, false), SCF_SUCCESS);
 }
 }

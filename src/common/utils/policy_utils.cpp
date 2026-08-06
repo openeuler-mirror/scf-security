@@ -46,6 +46,10 @@ std::map<int32_t, std::string> errorMap = {
     {SCF_ERRNO_CERT_NODE_ID_ABSENT, "RBAC certificate node ID extension is absent"},
     {SCF_ERRNO_CERT_ROLE_EXT_ABSENT, "RBAC certificate role extension is absent"},
     {SCF_ERRNO_RBAC_MAP_FROZEN, "RBAC node role mapping is frozen"},
+    {SCF_ERRNO_RBAC_POLICY_NOT_FOUND, "RBAC policy rule is not found"},
+    {SCF_ERRNO_RBAC_POLICY_FULL, "RBAC policy rule list is full"},
+    {SCF_ERRNO_RBAC_POLICY_DUPLICATE, "RBAC policy rule is duplicated"},
+    {SCF_ERRNO_RBAC_POLICY_INVALID, "RBAC policy rule is invalid"},
     // CAL 模块
     {SCF_ERRNO_INIT_HITLS_BSL, "Init HiTLS bsl error"},
     {SCF_ERRNO_INIT_HITLS_CRYPTO, "Init HiTLS crypto error"},

@@ -313,6 +313,60 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
 
 /**
  * @ingroup scf
+ * @brief 启用或关闭 RBAC 鉴权。
+ * @param ctx [IN] 安全策略上下文。
+ * @param enable [IN] true 启用，false 关闭。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_EnableRbac(SCF_PolicyCtx *ctx, bool enable);
+
+/**
+ * @ingroup scf
+ * @brief 获取映射表中所有 master 节点的快照。
+ * @param ctx [IN] 安全策略上下文。
+ * @param nodeIdList [OUT] master 节点 ID 数组。
+ * @param listCap [IN] 输出数组容量。
+ * @param actualCount [OUT] 实际写入的节点数量。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LEN], uint32_t listCap,
+    uint32_t *actualCount);
+
+/**
+ * @ingroup scf
+ * @brief 查询映射表中的节点是否为 master。
+ * @param ctx [IN] 安全策略上下文。
+ * @param nodeId [IN] 待查询节点 ID。
+ * @param isMaster [OUT] 是否为 master。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_IsMasterNode(SCF_PolicyCtx *ctx, const char *nodeId, bool *isMaster);
+
+/**
+ * @ingroup scf
+ * @brief 添加自定义 RBAC 策略规则。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const char *targetNodeId,
+    uint32_t resourceTypeBitmap, uint32_t actionBitmap, SCF_POLICY_EFFECT effect, uint32_t *ruleId);
+
+/**
+ * @ingroup scf
+ * @brief 删除指定规则 ID 的自定义 RBAC 策略规则。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_RemovePolicyRule(SCF_PolicyCtx *ctx, uint32_t ruleId);
+
+/**
+ * @ingroup scf
+ * @brief 获取自定义 RBAC 策略规则快照。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules, uint32_t ruleCap,
+    uint32_t *actualCount);
+
+/**
+ * @ingroup scf
  * @brief  配置安全通信使用的算法套
  * @param  ctx [IN] 安全策略上下文
  * @param  cipherSuites [IN] 算法套数组

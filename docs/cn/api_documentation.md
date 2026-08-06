@@ -101,6 +101,13 @@
         - [2.6.3 SCF_SetNodeRoleMapping](#263-SCF_SetNodeRoleMapping)
         - [2.6.4 SCF_RemoveNodeRoleMapping](#264-SCF_RemoveNodeRoleMapping)
         - [2.6.5 SCF_GetNodeRbacRole](#265-SCF_GetNodeRbacRole)
+    - [2.7 RBAC 管理与策略规则](#27-rbac-管理与策略规则)
+        - [2.7.1 SCF_EnableRbac](#271-SCF_EnableRbac)
+        - [2.7.2 SCF_ListMasterNodes](#272-SCF_ListMasterNodes)
+        - [2.7.3 SCF_IsMasterNode](#273-SCF_IsMasterNode)
+        - [2.7.4 SCF_AddPolicyRule](#274-SCF_AddPolicyRule)
+        - [2.7.5 SCF_RemovePolicyRule](#275-SCF_RemovePolicyRule)
+        - [2.7.6 SCF_ListPolicyRules](#276-SCF_ListPolicyRules)
 
 ## 1 数据结构
 
@@ -2371,3 +2378,104 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
 
 成功返回 `SCF_SUCCESS`；无法通过证书扩展或节点映射解析出角色时返回 `SCF_ERRNO_RBAC_ROLE_UNKNOWN`；
 证书扩展存在但编码或取值非法时返回相应错误码。
+
+### 2.7 RBAC 管理与策略规则
+
+本节接口管理 RBAC 开关、master 节点查询和自定义策略规则。规则仅在当前 `SCF_PolicyCtx` 生命周期内有效，规则 ID 不会在该上下文内复用。
+
+#### 2.7.1 SCF_EnableRbac
+
+```c++
+int32_t SCF_EnableRbac(SCF_PolicyCtx *ctx, bool enable);
+```
+
+启用或关闭当前策略上下文的 RBAC 鉴权。新建上下文默认关闭。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| enable | [IN] | 是 | `true` 启用 RBAC，`false` 关闭 RBAC。 |
+
+成功返回 `SCF_SUCCESS`；上下文为空或框架未初始化时返回相应错误码。
+
+#### 2.7.2 SCF_ListMasterNodes
+
+```c++
+int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LEN],
+    uint32_t listCap, uint32_t *actualCount);
+```
+
+获取节点角色映射表中 master 节点的快照。输出容量不足时截断，不视为错误。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| nodeIdList | [OUT] | 是 | 节点 ID 输出数组。 |
+| listCap | [IN] | 是 | 输出数组容量，必须大于 0。 |
+| actualCount | [OUT] | 是 | 实际写入的节点数量。 |
+
+#### 2.7.3 SCF_IsMasterNode
+
+```c++
+int32_t SCF_IsMasterNode(SCF_PolicyCtx *ctx, const char *nodeId, bool *isMaster);
+```
+
+查询映射表中的指定节点是否为 master。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| nodeId | [IN] | 是 | 待查询的非空节点 ID。 |
+| isMaster | [OUT] | 是 | 查询结果；映射不存在或角色为 slave 时为 `false`。 |
+
+#### 2.7.4 SCF_AddPolicyRule
+
+```c++
+int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const char *targetNodeId,
+    uint32_t resourceTypeBitmap, uint32_t actionBitmap, SCF_POLICY_EFFECT effect, uint32_t *ruleId);
+```
+
+添加自定义策略规则。主体节点必须为精确节点 ID，目标节点可以为精确节点 ID 或 `"*"`；资源类型和动作使用合法非零位图。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| subjectNodeId | [IN] | 是 | 发起操作的节点 ID，不支持通配符。 |
+| targetNodeId | [IN] | 是 | 目标节点 ID 或 `"*"`。 |
+| resourceTypeBitmap | [IN] | 是 | `FD`、`NUMA`、`ADDR` 的非零组合。 |
+| actionBitmap | [IN] | 是 | `APPLY`、`RELEASE` 的非零组合。 |
+| effect | [IN] | 是 | `SCF_POLICY_EFFECT_ALLOW` 或 `SCF_POLICY_EFFECT_DENY`。 |
+| ruleId | [OUT] | 是 | 新增规则的唯一 ID。 |
+
+成功返回 `SCF_SUCCESS`；重复规则、规则数量达到 `MAX_POLICY_RULE_SIZE` 或参数非法时返回对应错误码。
+
+#### 2.7.5 SCF_RemovePolicyRule
+
+```c++
+int32_t SCF_RemovePolicyRule(SCF_PolicyCtx *ctx, uint32_t ruleId);
+```
+
+按规则 ID 删除自定义策略规则。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| ruleId | [IN] | 是 | 大于 0 的规则 ID。 |
+
+成功返回 `SCF_SUCCESS`；规则不存在时返回 `SCF_ERRNO_RBAC_POLICY_NOT_FOUND`。
+
+#### 2.7.6 SCF_ListPolicyRules
+
+```c++
+int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules,
+    uint32_t ruleCap, uint32_t *actualCount);
+```
+
+获取自定义策略规则快照。输出容量不足时截断，不视为错误。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 安全策略上下文。 |
+| rules | [OUT] | 是 | 规则输出数组。 |
+| ruleCap | [IN] | 是 | 输出数组容量，必须大于 0。 |
+| actualCount | [OUT] | 是 | 实际写入的规则数量。 |
