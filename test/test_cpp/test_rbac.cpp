@@ -304,7 +304,8 @@ TEST_F(TestRbac, RbacSr01ErrorsHaveMessages)
 TEST_F(TestRbac, RbacSr02ErrorsHaveMessages)
 {
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_NOT_FOUND), "RBAC policy rule is not found");
-    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_FULL), "RBAC policy rule list is full");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_FULL),
+        "RBAC policy rule capacity or ID space is exhausted");
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_DUPLICATE),
         "RBAC policy rule is duplicated or conflicting");
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_INVALID), "RBAC policy rule is invalid");

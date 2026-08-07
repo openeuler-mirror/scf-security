@@ -363,7 +363,9 @@ int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const c
 /**
  * @ingroup scf
  * @brief 删除指定规则 ID 的自定义 RBAC 策略规则。
- * @return SCF_SUCCESS 或错误码。
+ * @param ctx [IN] 非空安全策略上下文。
+ * @param ruleId [IN] 待删除的规则 ID，必须大于 0。
+ * @return SCF_SUCCESS、SCF_ERRNO_NULL_INPUT、SCF_ERRNO_INVALID_PARAM、SCF_ERRNO_RBAC_POLICY_NOT_FOUND 或错误码。
  */
 int32_t SCF_RemovePolicyRule(SCF_PolicyCtx *ctx, uint32_t ruleId);
 
