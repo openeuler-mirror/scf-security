@@ -97,7 +97,7 @@ SCF_PolicyCtx *SCF_CreatePolicyCtx(void)
     ctx->nodeRoleMap.clear();
     ctx->nodeRoleMapFrozen.store(false);
     ctx->rbacEnabled.store(false);
-    ctx->policyRuleList.clear();
+    ctx->policyRuleMap.clear();
     ctx->nextPolicyRuleId = 1;
     return ctx;
 }

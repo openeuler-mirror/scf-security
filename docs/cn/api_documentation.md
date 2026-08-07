@@ -20,11 +20,15 @@
         - [1.1.14 协议版本号_字符串](#1114-协议版本号_字符串)
         - [1.1.15 RBAC 角色](#1115-rbac-角色)
         - [1.1.16 RBAC 角色来源](#1116-rbac-角色来源)
+        - [1.1.17 RBAC 资源操作](#1117-rbac-资源操作)
+        - [1.1.18 RBAC 资源类型](#1118-rbac-资源类型)
+        - [1.1.19 RBAC 策略效果](#1119-rbac-策略效果)
     - [1.2 结构体](#12-结构体)
         - [1.2.1 文件上下文](#121-文件上下文)
         - [1.2.2 安全策略上下文](#122-安全策略上下文)
         - [1.2.3 安全策略对象](#123-安全策略对象)
         - [1.2.4 安全会话对象](#124-安全会话对象)
+        - [1.2.5 RBAC 策略规则](#125-rbac-策略规则)
     - [1.3 回调函数定义](#13-回调函数定义)
         - [1.3.1 ExternalLogFunction](#131-ExternalLogFunction)
         - [1.3.2 ExternalDecryptFunction](#132-ExternalDecryptFunction)
@@ -523,6 +527,79 @@ typedef enum SCFRbacRoleSource {
 | SCF_RBAC_ROLE_SRC_CERT | 1 | 角色来自证书扩展 |
 | SCF_RBAC_ROLE_SRC_MAPPING | 2 | 角色来自节点角色映射 |
 
+#### 1.1.17 RBAC 资源操作
+
+##### 定义
+
+```c++
+typedef enum SCFResourceAction {
+    SCF_RES_ACTION_UNKNOWN = 0,
+    SCF_RES_ACTION_APPLY = 1,
+    SCF_RES_ACTION_RELEASE = 2,
+} SCF_RESOURCE_ACTION;
+```
+
+##### 用途
+
+表示 RBAC 策略规则约束的资源操作。`SCF_RES_ACTION_APPLY` 和 `SCF_RES_ACTION_RELEASE` 可按位组合。
+
+##### 属性说明
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_RES_ACTION_UNKNOWN | 0 | 未知操作，不能用于新增策略规则 |
+| SCF_RES_ACTION_APPLY | 1 | 申请资源 |
+| SCF_RES_ACTION_RELEASE | 2 | 释放资源 |
+
+#### 1.1.18 RBAC 资源类型
+
+##### 定义
+
+```c++
+typedef enum SCFResourceType {
+    SCF_RES_TYPE_NONE = 0,
+    SCF_RES_TYPE_FD = 1,
+    SCF_RES_TYPE_NUMA = 2,
+    SCF_RES_TYPE_ADDR = 4,
+    SCF_RES_TYPE_ALL = 7,
+} SCF_RESOURCE_TYPE;
+```
+
+##### 用途
+
+表示 RBAC 策略规则约束的资源类型。除 `SCF_RES_TYPE_NONE` 外，各资源类型可按位组合。
+
+##### 属性说明
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_RES_TYPE_NONE | 0 | 无资源类型，不能用于新增策略规则 |
+| SCF_RES_TYPE_FD | 1 | 文件描述符资源 |
+| SCF_RES_TYPE_NUMA | 2 | NUMA 资源 |
+| SCF_RES_TYPE_ADDR | 4 | 地址空间资源 |
+| SCF_RES_TYPE_ALL | 7 | 所有支持的资源类型 |
+
+#### 1.1.19 RBAC 策略效果
+
+##### 定义
+
+```c++
+typedef enum SCFPolicyEffect {
+    SCF_POLICY_EFFECT_ALLOW = 0,
+    SCF_POLICY_EFFECT_DENY = 1,
+} SCF_POLICY_EFFECT;
+```
+
+##### 用途
+
+表示 RBAC 策略规则允许或拒绝匹配的资源操作。
+
+##### 属性说明
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_POLICY_EFFECT_ALLOW | 0 | 允许访问 |
+| SCF_POLICY_EFFECT_DENY | 1 | 拒绝访问 |
 
 ### 1.2 结构体
 
@@ -595,6 +672,37 @@ typedef void SCF_Session;
 - 内部结构体，外部不需要关心结构，可通过函数操作属性。
 - 仅用于PSK回调函数中设置属性使用
 - 使用完成后需要调用[SCF_SessionFree](#234-SCF_SessionFree)进行资源释放
+
+#### 1.2.5 RBAC 策略规则
+
+##### 定义
+
+```c++
+struct SCF_PolicyRule {
+    uint32_t ruleId;
+    std::string subjectNodeId;
+    std::string targetNodeId;
+    uint32_t resourceTypeBitmap;
+    uint32_t actionBitmap;
+    SCF_POLICY_EFFECT effect;
+};
+```
+
+##### 用途
+
+表示一条 RBAC 自定义策略规则，由[SCF_AddPolicyRule](#274-SCF_AddPolicyRule)创建，通过
+[SCF_ListPolicyRules](#276-SCF_ListPolicyRules)读取。
+
+##### 属性说明
+
+| 名称 | 含义 |
+|---|---|
+| ruleId | 当前安全策略上下文内唯一且不复用的规则 ID |
+| subjectNodeId | 发起资源操作的节点 ID |
+| targetNodeId | 被操作的节点 ID 或通配符 `"*"` |
+| resourceTypeBitmap | 资源类型位图，取值见[1.1.18 RBAC 资源类型](#1118-rbac-资源类型) |
+| actionBitmap | 资源操作位图，取值见[1.1.17 RBAC 资源操作](#1117-rbac-资源操作) |
+| effect | 规则效果，见[1.1.19 RBAC 策略效果](#1119-rbac-策略效果) |
 
 ### 1.3 回调函数定义
 
@@ -769,6 +877,10 @@ typedef int32_t (*SCF_PskFindSessionCb)(
 | SCF_ERRNO_RBAC_MAP_NOT_FOUND          | 1962946566 | 指定节点角色映射不存在。                 |
 | SCF_ERRNO_CERT_NODE_ID_ABSENT         | 1962946567 | 证书缺少 NodeId 自定义扩展。             |
 | SCF_ERRNO_CERT_ROLE_EXT_ABSENT        | 1962946568 | 证书缺少 RBAC 角色自定义扩展。            |
+| SCF_ERRNO_RBAC_POLICY_NOT_FOUND       | 1962946569 | 指定 RBAC 策略规则不存在。                |
+| SCF_ERRNO_RBAC_POLICY_FULL            | 1962946570 | RBAC 策略规则数量或规则 ID 已达到上限。    |
+| SCF_ERRNO_RBAC_POLICY_DUPLICATE       | 1962946571 | RBAC 策略规则重复或效果冲突。              |
+| SCF_ERRNO_RBAC_POLICY_INVALID         | 1962946572 | RBAC 策略规则参数非法。                   |
 | SCF_ERRNO_RBAC_MAP_FROZEN             | 1962946573 | 连接成功建链后，节点角色映射已冻结。        |
 | SCF_CFG_ERRNO_PARSE                   | 1962938625 | CFG解析失败。                      |
 | SCF_CFG_ERRNO_CERT_ARRAY_GET          | 1962938626 | CFG获取证书列表失败。                  |
@@ -2381,9 +2493,14 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
 
 ### 2.7 RBAC 管理与策略规则
 
-本节接口管理 RBAC 开关、master 节点查询和自定义策略规则。规则仅在当前 `SCF_PolicyCtx` 生命周期内有效，规则 ID 不会在该上下文内复用。
+本节接口管理 RBAC 开关、master 节点查询和自定义策略规则。开关使用原子变量更新，节点角色映射和
+策略规则分别使用内部互斥锁保护；接口可由多个线程并发调用，但调用期间不得释放传入的
+`SCF_PolicyCtx`。规则仅在当前策略上下文生命周期内有效，按添加顺序保存，规则 ID 在该上下文内
+单调递增且不会复用。单个策略上下文最多保存 8192 条规则。
 
 #### 2.7.1 SCF_EnableRbac
+
+##### 函数定义
 
 ```c++
 int32_t SCF_EnableRbac(SCF_PolicyCtx *ctx, bool enable);
@@ -2391,91 +2508,159 @@ int32_t SCF_EnableRbac(SCF_PolicyCtx *ctx, bool enable);
 
 启用或关闭当前策略上下文的 RBAC 鉴权。新建上下文默认关闭。
 
+`ctx` 必须是已初始化 SCF 创建且尚未释放的安全策略上下文。开关以原子方式更新，并发调用不会产生
+数据竞争；多个线程同时设置时，最终状态取决于原子写入顺序。
+
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
 | enable | [IN] | 是 | `true` 启用 RBAC，`false` 关闭 RBAC。 |
 
-成功返回 `SCF_SUCCESS`；上下文为空或框架未初始化时返回相应错误码。
+##### 返回值
+
+成功返回 `SCF_SUCCESS`；`ctx` 为空时返回 `SCF_ERRNO_NULL_INPUT`；SCF 未初始化时返回
+`SCF_ERRNO_NOT_INIT`。
 
 #### 2.7.2 SCF_ListMasterNodes
+
+##### 函数定义
 
 ```c++
 int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LEN],
     uint32_t listCap, uint32_t *actualCount);
 ```
 
-获取节点角色映射表中 master 节点的快照。输出容量不足时截断，不视为错误。
+获取节点角色映射表中 master 节点的快照。
+
+`nodeIdList` 必须至少包含 `listCap` 个元素，每个元素均为 `MAX_NODE_ID_LEN` 字节。`listCap` 必须
+大于 0；输出容量不足时截断，不视为错误，节点返回顺序不作保证。每个返回的节点 ID 均以空字符结尾，
+有效长度为 1～127 字节。接口持有映射表锁完成复制，返回内容不会混合并发修改前后的状态。
 
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
-| nodeIdList | [OUT] | 是 | 节点 ID 输出数组。 |
-| listCap | [IN] | 是 | 输出数组容量，必须大于 0。 |
-| actualCount | [OUT] | 是 | 实际写入的节点数量。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| nodeIdList | [OUT] | 是 | master 节点 ID 输出数组，每个元素的大小必须为 `MAX_NODE_ID_LEN`。 |
+| listCap | [IN] | 是 | `nodeIdList` 的元素数量，必须大于 0。 |
+| actualCount | [OUT] | 是 | 实际写入的节点数量，最大为 `listCap`。 |
+
+##### 返回值
+
+成功（包括因容量不足而截断）返回 `SCF_SUCCESS`；任一指针参数为空时返回
+`SCF_ERRNO_NULL_INPUT`；`listCap` 为 0 时返回 `SCF_ERRNO_INVALID_PARAM`；SCF 未初始化或复制失败时
+返回相应错误码。
 
 #### 2.7.3 SCF_IsMasterNode
+
+##### 函数定义
 
 ```c++
 int32_t SCF_IsMasterNode(SCF_PolicyCtx *ctx, const char *nodeId, bool *isMaster);
 ```
 
-查询映射表中的指定节点是否为 master。
+查询映射表中指定节点的角色是否为 master。
+
+`nodeId` 必须以空字符结尾，有效长度为 1～127 字节，并且必须存在于当前策略上下文的节点角色映射
+中。映射角色为 master 时输出 `true`，为 slave 时输出 `false`。接口在查询映射前将 `isMaster`
+初始化为 `false`，因此映射不存在时返回 `SCF_ERRNO_RBAC_MAP_NOT_FOUND`，同时输出保持为 `false`；
+调用方应通过返回码区分 slave 与映射不存在。
 
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
-| nodeId | [IN] | 是 | 待查询的非空节点 ID。 |
-| isMaster | [OUT] | 是 | 查询结果；映射不存在或角色为 slave 时为 `false`。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| nodeId | [IN] | 是 | 待查询的节点 ID，必须以空字符结尾，有效长度为 1～127 字节。 |
+| isMaster | [OUT] | 是 | 查询结果；master 为 `true`，slave 或映射不存在为 `false`。 |
+
+##### 返回值
+
+映射存在并成功查询时返回 `SCF_SUCCESS`；映射不存在时返回 `SCF_ERRNO_RBAC_MAP_NOT_FOUND`；指针
+参数为空时返回 `SCF_ERRNO_NULL_INPUT`；节点 ID 非法时返回 `SCF_ERRNO_INVALID_PARAM`；SCF 未初始化
+时返回 `SCF_ERRNO_NOT_INIT`。
 
 #### 2.7.4 SCF_AddPolicyRule
+
+##### 函数定义
 
 ```c++
 int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const char *targetNodeId,
     uint32_t resourceTypeBitmap, uint32_t actionBitmap, SCF_POLICY_EFFECT effect, uint32_t *ruleId);
 ```
 
-添加自定义策略规则。主体节点必须为精确节点 ID，目标节点可以为精确节点 ID 或 `"*"`；资源类型和动作使用合法非零位图。
+添加自定义策略规则。
+
+主体节点和目标节点必须以空字符结尾，精确节点 ID 的有效长度为 1～127 字节。主体节点必须为精确
+节点 ID，不允许使用通配符；目标节点可以为精确节点 ID 或 `"*"`。资源类型位图必须是
+`SCF_RES_TYPE_FD`、`SCF_RES_TYPE_NUMA`、`SCF_RES_TYPE_ADDR` 的非零组合；动作位图必须是
+`SCF_RES_ACTION_APPLY`、`SCF_RES_ACTION_RELEASE` 的非零组合。规则效果只能为 allow 或 deny。
+
+主体、目标、资源类型位图和动作位图共同构成规则匹配键。同一匹配键只能配置一条规则：规则效果相同
+视为重复，规则效果不同时视为冲突，两种情况均返回 `SCF_ERRNO_RBAC_POLICY_DUPLICATE`。框架分配的
+`ruleId` 不参与匹配键判断。单个策略上下文最多保存 8192 条规则；添加成功后 `ruleId` 在该上下文内
+唯一且不复用。
 
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
-| subjectNodeId | [IN] | 是 | 发起操作的节点 ID，不支持通配符。 |
-| targetNodeId | [IN] | 是 | 目标节点 ID 或 `"*"`。 |
-| resourceTypeBitmap | [IN] | 是 | `FD`、`NUMA`、`ADDR` 的非零组合。 |
-| actionBitmap | [IN] | 是 | `APPLY`、`RELEASE` 的非零组合。 |
-| effect | [IN] | 是 | `SCF_POLICY_EFFECT_ALLOW` 或 `SCF_POLICY_EFFECT_DENY`。 |
-| ruleId | [OUT] | 是 | 新增规则的唯一 ID。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| subjectNodeId | [IN] | 是 | 发起操作的精确节点 ID，不支持通配符，有效长度为 1～127 字节。 |
+| targetNodeId | [IN] | 是 | 目标节点 ID（有效长度为 1～127 字节）或通配符 `"*"`。 |
+| resourceTypeBitmap | [IN] | 是 | 非零资源类型位图，取值见[1.1.18 RBAC 资源类型](#1118-rbac-资源类型)。 |
+| actionBitmap | [IN] | 是 | 非零资源操作位图，取值见[1.1.17 RBAC 资源操作](#1117-rbac-资源操作)。 |
+| effect | [IN] | 是 | 规则效果，见[1.1.19 RBAC 策略效果](#1119-rbac-策略效果)。 |
+| ruleId | [OUT] | 是 | 新增规则的唯一 ID，仅在成功时写入。 |
 
-成功返回 `SCF_SUCCESS`；重复规则、规则数量达到 `MAX_POLICY_RULE_SIZE` 或参数非法时返回对应错误码。
+##### 返回值
+
+成功返回 `SCF_SUCCESS`；规则参数非法时返回 `SCF_ERRNO_RBAC_POLICY_INVALID`；规则重复或效果冲突时
+返回 `SCF_ERRNO_RBAC_POLICY_DUPLICATE`；规则数量达到 8192 或规则 ID 耗尽时返回
+`SCF_ERRNO_RBAC_POLICY_FULL`；内存分配失败时返回 `SCF_ERRNO_MEM_ALLOC`；任一指针参数为空或 SCF 未
+初始化时返回相应错误码。
 
 #### 2.7.5 SCF_RemovePolicyRule
+
+##### 函数定义
 
 ```c++
 int32_t SCF_RemovePolicyRule(SCF_PolicyCtx *ctx, uint32_t ruleId);
 ```
 
-按规则 ID 删除自定义策略规则。
+按规则 ID 删除当前策略上下文中的自定义策略规则。`ruleId` 必须大于 0 且对应一条现有规则；删除后
+该 ID 不会再次分配。
 
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
-| ruleId | [IN] | 是 | 大于 0 的规则 ID。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| ruleId | [IN] | 是 | 由[SCF_AddPolicyRule](#274-SCF_AddPolicyRule)返回且大于 0 的规则 ID。 |
 
-成功返回 `SCF_SUCCESS`；规则不存在时返回 `SCF_ERRNO_RBAC_POLICY_NOT_FOUND`。
+##### 返回值
+
+成功返回 `SCF_SUCCESS`；规则不存在时返回 `SCF_ERRNO_RBAC_POLICY_NOT_FOUND`；`ruleId` 为 0 时返回
+`SCF_ERRNO_INVALID_PARAM`；`ctx` 为空或 SCF 未初始化时返回相应错误码。
 
 #### 2.7.6 SCF_ListPolicyRules
+
+##### 函数定义
 
 ```c++
 int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules,
     uint32_t ruleCap, uint32_t *actualCount);
 ```
 
-获取自定义策略规则快照。输出容量不足时截断，不视为错误。
+按添加顺序获取自定义策略规则快照。
+
+`rules` 必须指向至少包含 `ruleCap` 个已构造 `SCF_PolicyRule` 对象的数组，`ruleCap` 必须大于 0。
+输出容量不足时截断，不视为错误；`actualCount` 表示实际写入数量而非规则总数。接口持有规则锁完成
+复制，返回内容不会混合并发增删前后的状态。复制时若内存分配失败，接口返回
+`SCF_ERRNO_MEM_ALLOC`，`actualCount` 保留已完整写入的规则数，`rules[0..actualCount)` 有效，其余元素
+保持调用前状态。规则结构见[1.2.5 RBAC 策略规则](#125-rbac-策略规则)。
 
 | 参数名 | 参数类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文。 |
-| rules | [OUT] | 是 | 规则输出数组。 |
-| ruleCap | [IN] | 是 | 输出数组容量，必须大于 0。 |
-| actualCount | [OUT] | 是 | 实际写入的规则数量。 |
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| rules | [OUT] | 是 | 规则输出数组，元素类型见[1.2.5 RBAC 策略规则](#125-rbac-策略规则)。 |
+| ruleCap | [IN] | 是 | `rules` 的元素数量，必须大于 0。 |
+| actualCount | [OUT] | 是 | 已完整写入的规则数量，最大为 `ruleCap`；内存分配失败时保留已完成数量。 |
+
+##### 返回值
+
+成功（包括因容量不足而截断）返回 `SCF_SUCCESS`；任一指针参数为空时返回
+`SCF_ERRNO_NULL_INPUT`；`ruleCap` 为 0 时返回 `SCF_ERRNO_INVALID_PARAM`；SCF 未初始化时返回
+`SCF_ERRNO_NOT_INIT`；复制规则时内存分配失败返回 `SCF_ERRNO_MEM_ALLOC`。

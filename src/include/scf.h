@@ -337,15 +337,25 @@ int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LE
  * @brief 查询映射表中的节点是否为 master。
  * @param ctx [IN] 安全策略上下文。
  * @param nodeId [IN] 待查询节点 ID。
- * @param isMaster [OUT] 是否为 master。
- * @return SCF_SUCCESS 或错误码。
+ * @param isMaster [OUT] 是否为 master；映射不存在时写入 false。
+ * @return SCF_SUCCESS、SCF_ERRNO_RBAC_MAP_NOT_FOUND 或错误码。
  */
 int32_t SCF_IsMasterNode(SCF_PolicyCtx *ctx, const char *nodeId, bool *isMaster);
 
 /**
  * @ingroup scf
  * @brief 添加自定义 RBAC 策略规则。
+ * @param ctx [IN] 非空安全策略上下文。
+ * @param subjectNodeId [IN] 主体节点 ID，长度为 1～127 字节，不允许使用通配符 "*"。
+ * @param targetNodeId [IN] 目标节点 ID，长度为 1～127 字节；可使用通配符 "*"。
+ * @param resourceTypeBitmap [IN] 非零资源类型位图，仅允许 SCF_RES_TYPE_FD、SCF_RES_TYPE_NUMA 和
+ * SCF_RES_TYPE_ADDR 的组合。
+ * @param actionBitmap [IN] 非零操作位图，仅允许 SCF_RES_ACTION_APPLY 和 SCF_RES_ACTION_RELEASE 的组合。
+ * @param effect [IN] 规则效果，仅允许 SCF_POLICY_EFFECT_ALLOW 或 SCF_POLICY_EFFECT_DENY。
+ * @param ruleId [OUT] 新规则 ID；仅在返回 SCF_SUCCESS 时写入。
  * @return SCF_SUCCESS 或错误码。
+ * @attention 同一主体、目标、资源类型和动作只能配置一个 effect，重复或冲突均返回
+ * SCF_ERRNO_RBAC_POLICY_DUPLICATE。
  */
 int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const char *targetNodeId,
     uint32_t resourceTypeBitmap, uint32_t actionBitmap, SCF_POLICY_EFFECT effect, uint32_t *ruleId);
@@ -360,7 +370,11 @@ int32_t SCF_RemovePolicyRule(SCF_PolicyCtx *ctx, uint32_t ruleId);
 /**
  * @ingroup scf
  * @brief 获取自定义 RBAC 策略规则快照。
- * @return SCF_SUCCESS 或错误码。
+ * @param ctx [IN] 非空安全策略上下文。
+ * @param rules [OUT] 可写数组，至少包含 ruleCap 个已构造的 SCF_PolicyRule 对象。
+ * @param ruleCap [IN] rules 的元素容量，必须大于 0。
+ * @param actualCount [OUT] 已完整写入的规则数，内存分配失败时保留已完成数量。
+ * @return SCF_SUCCESS、SCF_ERRNO_MEM_ALLOC 或错误码。
  */
 int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules, uint32_t ruleCap,
     uint32_t *actualCount);

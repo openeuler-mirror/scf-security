@@ -75,7 +75,10 @@ bool StubKmcDecryptPassword([[maybe_unused]] const uint8_t *passwd, [[maybe_unus
 
 void ExternalLogFunction(int level, const char *msg)
 {
-    std::cout << "|level:" << level << " msg:" << msg << '\n';
+    // 仅输出 INFO 及以上日志，避免高频调试日志干扰 smoke 测试结果。
+    if (level > LOG_LEVEL_DEBUG) {
+        std::cout << "|level:" << level << " msg:" << msg << '\n';
+    }
 }
 
 void SCFSmokeTest::SetUp()

@@ -15,7 +15,7 @@
 #define SCF_INNER_H
 
 #include <atomic>
-#include <list>
+#include <map>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -54,7 +54,7 @@ namespace scf {
         std::atomic_bool nodeRoleMapFrozen;
         std::atomic_bool rbacEnabled;
         std::mutex policyRuleMutex;
-        std::list<SCF_PolicyRule> policyRuleList;
+        std::map<uint32_t, SCF_PolicyRule> policyRuleMap;
         uint32_t nextPolicyRuleId;
     };
 

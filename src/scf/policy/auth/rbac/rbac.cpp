@@ -14,6 +14,8 @@
 #include <cstring>
 #include <new>
 #include <limits>
+#include <type_traits>
+#include <utility>
 #include "custom_logger.h"
 #include "scf.h"
 #include "scf_inner.h"
@@ -21,6 +23,8 @@
 #include "string_util.h"
 
 namespace scf {
+static_assert(std::is_nothrow_move_assignable_v<SCF_PolicyRule>, "SCF_PolicyRule move assignment must not throw");
+
 static bool IsValidNodeId(const char *nodeId)
 {
     if (nodeId == nullptr) {
@@ -45,11 +49,29 @@ static bool IsValidPolicyEffect(SCF_POLICY_EFFECT effect)
     return effect == SCF_POLICY_EFFECT_ALLOW || effect == SCF_POLICY_EFFECT_DENY;
 }
 
-static bool IsDuplicatePolicyRule(const SCF_PolicyRule &left, const SCF_PolicyRule &right)
+static bool IsSamePolicyRuleKey(const SCF_PolicyRule &left, const SCF_PolicyRule &right)
 {
     return left.subjectNodeId == right.subjectNodeId && left.targetNodeId == right.targetNodeId &&
-        left.resourceTypeBitmap == right.resourceTypeBitmap && left.actionBitmap == right.actionBitmap &&
-        left.effect == right.effect;
+        left.resourceTypeBitmap == right.resourceTypeBitmap && left.actionBitmap == right.actionBitmap;
+}
+
+static int32_t InsertPolicyRule(SCF_PolicyCtx *ctx, SCF_PolicyRule &rule)
+{
+    for (const auto &item : ctx->policyRuleMap) {
+        if (IsSamePolicyRuleKey(item.second, rule)) {
+            return SCF_ERRNO_RBAC_POLICY_DUPLICATE;
+        }
+    }
+    if (ctx->policyRuleMap.size() >= MAX_POLICY_RULE_SIZE || ctx->nextPolicyRuleId == 0) {
+        return SCF_ERRNO_RBAC_POLICY_FULL;
+    }
+    rule.ruleId = ctx->nextPolicyRuleId;
+    if (!ctx->policyRuleMap.emplace(rule.ruleId, rule).second) {
+        return SCF_ERROR;
+    }
+    ctx->nextPolicyRuleId =
+        ctx->nextPolicyRuleId == std::numeric_limits<uint32_t>::max() ? 0 : ctx->nextPolicyRuleId + 1;
+    return SCF_SUCCESS;
 }
 
 void FreezeNodeRoleMapping(SCF_PolicyCtx *ctx)
@@ -280,7 +302,10 @@ int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LE
     *actualCount = 0;
     std::lock_guard<std::mutex> lock(ctx->nodeRoleMapMutex);
     for (const auto &mapping : ctx->nodeRoleMap) {
-        if (mapping.second != SCF_RBAC_ROLE_MASTER || *actualCount == listCap) {
+        if (*actualCount == listCap) {
+            break;
+        }
+        if (mapping.second != SCF_RBAC_ROLE_MASTER) {
             continue;
         }
         if (memcpy_s(nodeIdList[*actualCount], MAX_NODE_ID_LEN, mapping.first.data(), mapping.first.size()) != EOK) {
@@ -305,9 +330,14 @@ int32_t SCF_IsMasterNode(SCF_PolicyCtx *ctx, const char *nodeId, bool *isMaster)
         return SCF_ERRNO_INVALID_PARAM;
     }
     CHECK_SCF_INIT_RET("SCF_IsMasterNode");
+    *isMaster = false;
     std::lock_guard<std::mutex> lock(ctx->nodeRoleMapMutex);
     auto it = ctx->nodeRoleMap.find(nodeId);
-    *isMaster = it != ctx->nodeRoleMap.end() && it->second == SCF_RBAC_ROLE_MASTER;
+    if (it == ctx->nodeRoleMap.end()) {
+        CCSEC_LOG_ERROR("|SCF_IsMasterNode|END|returnF||node role mapping is absent");
+        return SCF_ERRNO_RBAC_MAP_NOT_FOUND;
+    }
+    *isMaster = it->second == SCF_RBAC_ROLE_MASTER;
     CCSEC_LOG_DEBUG("|SCF_IsMasterNode|END|returnS||check master node success");
     return SCF_SUCCESS;
 }
@@ -326,26 +356,18 @@ int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const c
         return SCF_ERRNO_RBAC_POLICY_INVALID;
     }
     CHECK_SCF_INIT_RET("SCF_AddPolicyRule");
-    SCF_PolicyRule rule = {0, subjectNodeId, targetNodeId, resourceTypeBitmap, actionBitmap, effect};
-    std::lock_guard<std::mutex> lock(ctx->policyRuleMutex);
-    for (const auto &item : ctx->policyRuleList) {
-        if (IsDuplicatePolicyRule(item, rule)) {
-            CCSEC_LOG_ERROR("|SCF_AddPolicyRule|END|returnF||duplicate policy rule");
-            return SCF_ERRNO_RBAC_POLICY_DUPLICATE;
+    try {
+        SCF_PolicyRule rule = {0, subjectNodeId, targetNodeId, resourceTypeBitmap, actionBitmap, effect};
+        std::lock_guard<std::mutex> lock(ctx->policyRuleMutex);
+        int32_t ret = InsertPolicyRule(ctx, rule);
+        if (ret != SCF_SUCCESS) {
+            CCSEC_LOG_ERROR("|SCF_AddPolicyRule|END|returnF||insert policy rule failed, ret:" << ret);
+            return ret;
         }
+        *ruleId = rule.ruleId;
+    } catch (const std::bad_alloc &) {
+        return SCF_ERRNO_MEM_ALLOC;
     }
-    if (ctx->policyRuleList.size() >= MAX_POLICY_RULE_SIZE || ctx->nextPolicyRuleId == 0) {
-        CCSEC_LOG_ERROR("|SCF_AddPolicyRule|END|returnF||policy rule list is full");
-        return SCF_ERRNO_RBAC_POLICY_FULL;
-    }
-    rule.ruleId = ctx->nextPolicyRuleId;
-    if (ctx->nextPolicyRuleId == std::numeric_limits<uint32_t>::max()) {
-        ctx->nextPolicyRuleId = 0;
-    } else {
-        ++ctx->nextPolicyRuleId;
-    }
-    ctx->policyRuleList.push_back(rule);
-    *ruleId = rule.ruleId;
     CCSEC_LOG_DEBUG("|SCF_AddPolicyRule|END|returnS||add policy rule success");
     return SCF_SUCCESS;
 }
@@ -362,15 +384,14 @@ int32_t SCF_RemovePolicyRule(SCF_PolicyCtx *ctx, uint32_t ruleId)
     }
     CHECK_SCF_INIT_RET("SCF_RemovePolicyRule");
     std::lock_guard<std::mutex> lock(ctx->policyRuleMutex);
-    for (auto it = ctx->policyRuleList.begin(); it != ctx->policyRuleList.end(); ++it) {
-        if (it->ruleId == ruleId) {
-            ctx->policyRuleList.erase(it);
-            CCSEC_LOG_DEBUG("|SCF_RemovePolicyRule|END|returnS||remove policy rule success");
-            return SCF_SUCCESS;
-        }
+    auto ruleIt = ctx->policyRuleMap.find(ruleId);
+    if (ruleIt == ctx->policyRuleMap.end()) {
+        CCSEC_LOG_ERROR("|SCF_RemovePolicyRule|END|returnF||policy rule is absent");
+        return SCF_ERRNO_RBAC_POLICY_NOT_FOUND;
     }
-    CCSEC_LOG_ERROR("|SCF_RemovePolicyRule|END|returnF||policy rule is absent");
-    return SCF_ERRNO_RBAC_POLICY_NOT_FOUND;
+    ctx->policyRuleMap.erase(ruleIt);
+    CCSEC_LOG_DEBUG("|SCF_RemovePolicyRule|END|returnS||remove policy rule success");
+    return SCF_SUCCESS;
 }
 
 int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules, uint32_t ruleCap, uint32_t *actualCount)
@@ -386,12 +407,18 @@ int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules, uint32_t 
     CHECK_SCF_INIT_RET("SCF_ListPolicyRules");
     *actualCount = 0;
     std::lock_guard<std::mutex> lock(ctx->policyRuleMutex);
-    for (const auto &rule : ctx->policyRuleList) {
-        if (*actualCount == ruleCap) {
-            break;
+    try {
+        for (const auto &item : ctx->policyRuleMap) {
+            if (*actualCount == ruleCap) {
+                break;
+            }
+            // 先完成局部副本，确保分配失败时未计数的输出元素保持调用前状态。
+            SCF_PolicyRule copiedRule = item.second;
+            rules[*actualCount] = std::move(copiedRule);
+            ++(*actualCount);
         }
-        rules[*actualCount] = rule;
-        ++(*actualCount);
+    } catch (const std::bad_alloc &) {
+        return SCF_ERRNO_MEM_ALLOC;
     }
     CCSEC_LOG_DEBUG("|SCF_ListPolicyRules|END|returnS||list policy rules success");
     return SCF_SUCCESS;

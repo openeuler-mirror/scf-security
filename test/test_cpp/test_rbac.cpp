@@ -13,12 +13,14 @@
 
 #include <gtest/gtest.h>
 #include <dlfcn.h>
+#include <limits>
 #include <unistd.h>
 #include <vector>
 #include "openssl_adaptor.h"
 #include "scf.h"
 #include "scf_errno.h"
 #include "scf_inner.h"
+#include "test_scf.h"
 #include "securec.h"
 
 using namespace scf;
@@ -106,6 +108,7 @@ class TestRbac : public ::testing::Test {
 protected:
     void SetUp() override
     {
+        SetExternalLogFunction(ExternalLogFunction);
         char libPath[] = "/usr/lib64";
         ASSERT_EQ(SCF_Init(SCF_INIT_FLAG_OPENSSL, libPath), SCF_SUCCESS);
         ctx_ = SCF_CreatePolicyCtx();
@@ -121,6 +124,7 @@ protected:
             SCF_FreePolicyCtx(&ctx_);
         }
         SCF_DeInit();
+        SetExternalLogFunction(nullptr);
     }
 
     void *LoadRbacCert(const char *certName)
@@ -161,16 +165,29 @@ TEST_F(TestRbac, NodeRoleMappingLifecycle)
     EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, "node-1"), SCF_ERRNO_RBAC_MAP_NOT_FOUND);
 }
 
+TEST_F(TestRbac, NodeRoleMappingAcceptsBoundaryNodeIdLengths)
+{
+    const std::string nodeIdLengthOne(1, 'a');
+    const std::string nodeIdLength127(127, 'b');
+
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, nodeIdLengthOne.c_str(), SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, nodeIdLengthOne.c_str()), SCF_SUCCESS);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, nodeIdLength127.c_str(), SCF_RBAC_ROLE_SLAVE), SCF_SUCCESS);
+    EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, nodeIdLength127.c_str()), SCF_SUCCESS);
+}
+
 TEST_F(TestRbac, NodeRoleMappingRejectsInvalidInput)
 {
     char unterminatedNodeId[NODE_ID_BUFFER_SIZE];
     char nodeId[2] = {0};
     size_t nodeIdLen = 0;
     char cert = 0;
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
     ASSERT_EQ(memset_s(unterminatedNodeId, sizeof(unterminatedNodeId), 'a', sizeof(unterminatedNodeId)), EOK);
     EXPECT_EQ(SCF_SetNodeRoleMapping(nullptr, "node-1", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, nullptr, SCF_RBAC_ROLE_MASTER), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "", SCF_RBAC_ROLE_MASTER), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, unterminatedNodeId, SCF_RBAC_ROLE_MASTER), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", SCF_RBAC_ROLE_UNKNOWN), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, "node-1", static_cast<SCF_RBAC_ROLE>(3)), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_RemoveNodeRoleMapping(nullptr, "node-1"), SCF_ERRNO_NULL_INPUT);
@@ -180,6 +197,8 @@ TEST_F(TestRbac, NodeRoleMappingRejectsInvalidInput)
     EXPECT_EQ(SCF_GetCertNodeId(&cert, nullptr, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetCertNodeId(&cert, nodeId, sizeof(nodeId), nullptr), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetCertNodeId(&cert, nodeId, 0, &nodeIdLen), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_GetCertRbacRole(&cert, nullptr), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_GetCertRbacRole(nullptr, &role), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetCertRbacRole(nullptr, nullptr), SCF_ERRNO_NULL_INPUT);
 }
 
@@ -286,7 +305,8 @@ TEST_F(TestRbac, RbacSr02ErrorsHaveMessages)
 {
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_NOT_FOUND), "RBAC policy rule is not found");
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_FULL), "RBAC policy rule list is full");
-    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_DUPLICATE), "RBAC policy rule is duplicated");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_DUPLICATE),
+        "RBAC policy rule is duplicated or conflicting");
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_INVALID), "RBAC policy rule is invalid");
 }
 
@@ -328,7 +348,9 @@ TEST_F(TestRbac, NodeRoleLookupRejectsInvalidInput)
     ASSERT_EQ(memset_s(unterminatedNodeId, sizeof(unterminatedNodeId), 'a', sizeof(unterminatedNodeId)), EOK);
     SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
     SCF_RBAC_ROLE_SOURCE src = SCF_RBAC_ROLE_SRC_NONE;
-    EXPECT_EQ(SCF_GetNodeRbacRole(nullptr, nullptr, "node-1", &role, &src), SCF_ERRNO_NULL_INPUT);
+    void *cert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    EXPECT_EQ(SCF_GetNodeRbacRole(nullptr, cert, "node-1", &role, &src), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", nullptr, &src), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", &role, nullptr), SCF_ERRNO_NULL_INPUT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, nullptr, &role, &src), SCF_ERRNO_NULL_INPUT);
@@ -512,6 +534,9 @@ TEST_F(TestRbac, MasterNodesCanBeListedAndQueried)
     EXPECT_TRUE(isMaster);
     EXPECT_EQ(SCF_IsMasterNode(ctx_, "slave-1", &isMaster), SCF_SUCCESS);
     EXPECT_FALSE(isMaster);
+    isMaster = true;
+    EXPECT_EQ(SCF_IsMasterNode(ctx_, "missing", &isMaster), SCF_ERRNO_RBAC_MAP_NOT_FOUND);
+    EXPECT_FALSE(isMaster);
     EXPECT_EQ(SCF_IsMasterNode(ctx_, "", &isMaster), SCF_ERRNO_INVALID_PARAM);
     EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, 0, &actualCount), SCF_ERRNO_INVALID_PARAM);
 }
@@ -537,13 +562,113 @@ TEST_F(TestRbac, PolicyRulesSupportCrudAndValidation)
     EXPECT_EQ(SCF_RemovePolicyRule(ctx_, firstRuleId), SCF_SUCCESS);
     EXPECT_EQ(SCF_RemovePolicyRule(ctx_, firstRuleId), SCF_ERRNO_RBAC_POLICY_NOT_FOUND);
     EXPECT_EQ(SCF_RemovePolicyRule(ctx_, 0), SCF_ERRNO_INVALID_PARAM);
-    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "*", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
-        SCF_POLICY_EFFECT_ALLOW, &firstRuleId), SCF_ERRNO_RBAC_POLICY_INVALID);
-    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", 0, SCF_RES_ACTION_APPLY,
-        SCF_POLICY_EFFECT_ALLOW, &firstRuleId), SCF_ERRNO_RBAC_POLICY_INVALID);
-    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, 4,
-        SCF_POLICY_EFFECT_ALLOW, &firstRuleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    uint32_t removedRuleId = firstRuleId;
+    uint32_t readdedRuleId = 0;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &readdedRuleId), SCF_SUCCESS);
+    EXPECT_NE(readdedRuleId, removedRuleId);
+    EXPECT_GT(readdedRuleId, secondRuleId);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 2, &actualCount), SCF_SUCCESS);
+    ASSERT_EQ(actualCount, 2U);
+    EXPECT_EQ(rules[0].ruleId, secondRuleId);
+    EXPECT_NE(rules[0].ruleId, removedRuleId);
+    EXPECT_EQ(rules[0].subjectNodeId, "node-1");
+    EXPECT_EQ(rules[0].targetNodeId, "*");
+    EXPECT_EQ(rules[0].resourceTypeBitmap, SCF_RES_TYPE_ALL);
+    EXPECT_EQ(rules[0].actionBitmap, SCF_RES_ACTION_RELEASE);
+    EXPECT_EQ(rules[0].effect, SCF_POLICY_EFFECT_DENY);
+    EXPECT_EQ(rules[1].ruleId, readdedRuleId);
+    EXPECT_NE(rules[1].ruleId, removedRuleId);
+    EXPECT_EQ(rules[1].subjectNodeId, "node-1");
+    EXPECT_EQ(rules[1].targetNodeId, "node-2");
+    EXPECT_EQ(rules[1].resourceTypeBitmap, SCF_RES_TYPE_FD);
+    EXPECT_EQ(rules[1].actionBitmap, SCF_RES_ACTION_APPLY);
+    EXPECT_EQ(rules[1].effect, SCF_POLICY_EFFECT_ALLOW);
     EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 0, &actualCount), SCF_ERRNO_INVALID_PARAM);
+}
+
+TEST_F(TestRbac, AddPolicyRuleRejectsConflictingEffect)
+{
+    uint32_t ruleId = 0;
+    uint32_t conflictingRuleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_DENY, &conflictingRuleId), SCF_ERRNO_RBAC_POLICY_DUPLICATE);
+    EXPECT_EQ(conflictingRuleId, 0U);
+}
+
+TEST_F(TestRbac, PolicyRuleCapacityRejectsEntryBeyondLimit)
+{
+    uint32_t ruleId = 0;
+    for (uint32_t i = 0; i < MAX_POLICY_RULE_SIZE; ++i) {
+        const std::string subjectNodeId = "subject-" + std::to_string(i);
+        ASSERT_EQ(SCF_AddPolicyRule(ctx_, subjectNodeId.c_str(), "target", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+    }
+    EXPECT_EQ(ruleId, MAX_POLICY_RULE_SIZE);
+
+    ruleId = 123;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "overflow", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_RBAC_POLICY_FULL);
+    EXPECT_EQ(ruleId, 123U);
+}
+
+TEST_F(TestRbac, PolicyRuleIdExhaustionIsPermanent)
+{
+    ctx_->nextPolicyRuleId = std::numeric_limits<uint32_t>::max() - 1;
+    uint32_t penultimateRuleId = 0;
+    uint32_t lastRuleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "penultimate", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &penultimateRuleId), SCF_SUCCESS);
+    EXPECT_EQ(penultimateRuleId, std::numeric_limits<uint32_t>::max() - 1);
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "last", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &lastRuleId), SCF_SUCCESS);
+    EXPECT_EQ(lastRuleId, std::numeric_limits<uint32_t>::max());
+    EXPECT_EQ(ctx_->nextPolicyRuleId, 0U);
+
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, lastRuleId), SCF_SUCCESS);
+    uint32_t exhaustedRuleId = 123;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "after-exhaustion", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &exhaustedRuleId), SCF_ERRNO_RBAC_POLICY_FULL);
+    EXPECT_EQ(exhaustedRuleId, 123U);
+}
+
+TEST_F(TestRbac, AddPolicyRuleRejectsEachInvalidField)
+{
+    char unterminatedNodeId[NODE_ID_BUFFER_SIZE];
+    ASSERT_EQ(memset_s(unterminatedNodeId, sizeof(unterminatedNodeId), 'a', sizeof(unterminatedNodeId)), EOK);
+    uint32_t ruleId = 123;
+
+    EXPECT_EQ(SCF_AddPolicyRule(nullptr, "node-1", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(ruleId, 123U);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, nullptr, "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(ruleId, 123U);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", nullptr, SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(ruleId, 123U);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, nullptr), SCF_ERRNO_NULL_INPUT);
+
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, unterminatedNodeId, "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "*", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", unterminatedNodeId, SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", 0, SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &ruleId),
+        SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", 8, SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &ruleId),
+        SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, 0, SCF_POLICY_EFFECT_ALLOW, &ruleId),
+        SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, 4, SCF_POLICY_EFFECT_ALLOW, &ruleId),
+        SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "node-2", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        static_cast<SCF_POLICY_EFFECT>(2), &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    EXPECT_EQ(ruleId, 123U);
 }
 
 TEST_F(TestRbac, EnableRbacRejectsNullContext)
