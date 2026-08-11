@@ -23,11 +23,11 @@
 
 namespace scf {
 
-class OpenSSLAdapter : public AbstractTLSAdaptor {
+class OpenSSLAdaptor : public AbstractTLSAdaptor {
 public:
-    OpenSSLAdapter() = default;
+    OpenSSLAdaptor() = default;
 
-    ~OpenSSLAdapter() override = default;
+    ~OpenSSLAdaptor() override = default;
 
     int32_t Init(uint64_t flag, const void *settings) override;
 

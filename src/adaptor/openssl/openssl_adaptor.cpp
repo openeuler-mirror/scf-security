@@ -41,9 +41,9 @@ static int SslErrorsPrint(const char *errStr, size_t errStrLen, void *userdata)
     return SSL_SUCCESS;
 }
 
-bool OpenSSLAdapter::g_certlog_switch = false;
+bool OpenSSLAdaptor::g_certlog_switch = false;
 
-int32_t OpenSSLAdapter::Init(uint64_t flag, const void *settings)
+int32_t OpenSSLAdaptor::Init(uint64_t flag, const void *settings)
 {
     (void) flag; // 预留
     if (settings == nullptr) {
@@ -65,7 +65,7 @@ int32_t OpenSSLAdapter::Init(uint64_t flag, const void *settings)
     return SCF_SUCCESS;
 }
 
-void OpenSSLAdapter::DeInit()
+void OpenSSLAdaptor::DeInit()
 {
     m_cryptoEngine = nullptr;  // 引擎生命周期由调用方管理，此处仅清除引用
     LibCryptoApi::GetInstance().UnInit();
@@ -76,19 +76,19 @@ void OpenSSLAdapter::DeInit()
 // CryptoEngine 注入 (v2.0)
 // ============================================================
 
-void OpenSSLAdapter::SetCryptoEngine(ICryptoEngine *engine)
+void OpenSSLAdaptor::SetCryptoEngine(ICryptoEngine *engine)
 {
     m_cryptoEngine = engine;
     if (engine != nullptr) {
-        CCSEC_LOG_INFO("OpenSSLAdapter: crypto engine set: "
+        CCSEC_LOG_INFO("OpenSSLAdaptor: crypto engine set: "
             << (engine->IsHardwareAccelerated() ? "HARDWARE" : "SOFTWARE")
             << " (" << engine->GetAcceleratedAlgorithms() << ")");
     } else {
-        CCSEC_LOG_INFO("OpenSSLAdapter: crypto engine cleared (using default)");
+        CCSEC_LOG_INFO("OpenSSLAdaptor: crypto engine cleared (using default)");
     }
 }
 
-ICryptoEngine *OpenSSLAdapter::GetCryptoEngine() const
+ICryptoEngine *OpenSSLAdaptor::GetCryptoEngine() const
 {
     return m_cryptoEngine;
 }
@@ -102,11 +102,11 @@ ICryptoEngine *OpenSSLAdapter::GetCryptoEngine() const
 // groups 格式: 冒号分隔的命名组列表，如 "X25519:P-256:p256_kyber512"
 // 如果 PQ Provider 不可用，不支持的组会被自动跳过。
 
-int32_t OpenSSLAdapter::SetKeyExchangeGroups(
+int32_t OpenSSLAdaptor::SetKeyExchangeGroups(
     SCF_PolicyCtx *ctx, const std::vector<std::string> &groups)
 {
     if (ctx == nullptr || ctx->sslConfig == nullptr) {
-        CCSEC_LOG_WARN("OpenSSLAdapter: SetKeyExchangeGroups called with null ctx or sslConfig,"
+        CCSEC_LOG_WARN("OpenSSLAdaptor: SetKeyExchangeGroups called with null ctx or sslConfig,"
             << " groups will be applied later.");
         return SCF_ERRNO_NULL_INPUT;
     }
@@ -123,18 +123,18 @@ int32_t OpenSSLAdapter::SetKeyExchangeGroups(
     }
 
     if (SSL_CTX_set1_groups_list(ctx->sslConfig, const_cast<char*>(groupsStr.c_str())) != SSL_SUCCESS) {
-        CCSEC_LOG_ERROR("OpenSSLAdapter: SSL_CTX_set1_groups_list failed for groups: "
+        CCSEC_LOG_ERROR("OpenSSLAdaptor: SSL_CTX_set1_groups_list failed for groups: "
             << groupsStr << ". Some groups may not be available (check PQ Provider).");
         // 不返回失败：某些组不可用是预期行为（如 PQ Provider 未加载时）
         // OpenSSL 会自动使用可用的组
     } else {
-        CCSEC_LOG_INFO("OpenSSLAdapter: key exchange groups set: " << groupsStr);
+        CCSEC_LOG_INFO("OpenSSLAdaptor: key exchange groups set: " << groupsStr);
     }
 
     return SCF_SUCCESS;
 }
 
-void OpenSSLAdapter::LogCertError(SCF_PolicyObj *obj)
+void OpenSSLAdaptor::LogCertError(SCF_PolicyObj *obj)
 {
     if (obj == nullptr) {
         return;
@@ -164,7 +164,7 @@ void OpenSSLAdapter::LogCertError(SCF_PolicyObj *obj)
     }
 }
 
-int32_t OpenSSLAdapter::HandleTransPortError(SCF_PolicyObj *obj, int32_t errorCode)
+int32_t OpenSSLAdaptor::HandleTransPortError(SCF_PolicyObj *obj, int32_t errorCode)
 {
     // 针对故障模式进行处理
     // 目前只有一种故障模式，只有简易的证书详细信息开关
@@ -182,18 +182,18 @@ int32_t OpenSSLAdapter::HandleTransPortError(SCF_PolicyObj *obj, int32_t errorCo
     return SCF_ERRNO_SECURE_TRANSPORT;
 }
 
-void OpenSSLAdapter::OpenCertErrorLog()
+void OpenSSLAdaptor::OpenCertErrorLog()
 {
     g_certlog_switch = true;
 }
 
-void OpenSSLAdapter::CloseCertErrorLog()
+void OpenSSLAdaptor::CloseCertErrorLog()
 {
     g_certlog_switch = false;
 }
 
 // SCF_cal_ssl_obj
-void OpenSSLAdapter::FreeSslObj(SCF_PolicyObj *obj)
+void OpenSSLAdaptor::FreeSslObj(SCF_PolicyObj *obj)
 {
     if (obj != nullptr && obj->sslCtx != nullptr) {
         LibSslApi::GetInstance().SSL_free(obj->sslCtx);
@@ -201,7 +201,7 @@ void OpenSSLAdapter::FreeSslObj(SCF_PolicyObj *obj)
     }
 }
 
-int32_t OpenSSLAdapter::Connect(SCF_PolicyObj *obj)
+int32_t OpenSSLAdaptor::Connect(SCF_PolicyObj *obj)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_INFO("Openssl Connect obj or sslCtx is nullptr");
@@ -221,7 +221,7 @@ int32_t OpenSSLAdapter::Connect(SCF_PolicyObj *obj)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::Accept(SCF_PolicyObj *obj)
+int32_t OpenSSLAdaptor::Accept(SCF_PolicyObj *obj)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_INFO("Openssl Connect obj or sslCtx is nullptr");
@@ -241,7 +241,7 @@ int32_t OpenSSLAdapter::Accept(SCF_PolicyObj *obj)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::Read(SCF_PolicyObj *obj, uint8_t *data, uint32_t dataLen, uint32_t *readLen)
+int32_t OpenSSLAdaptor::Read(SCF_PolicyObj *obj, uint8_t *data, uint32_t dataLen, uint32_t *readLen)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_INFO("Openssl Read, obj or sslCtx is nullptr");
@@ -262,7 +262,7 @@ int32_t OpenSSLAdapter::Read(SCF_PolicyObj *obj, uint8_t *data, uint32_t dataLen
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::Write(SCF_PolicyObj *obj, const uint8_t *data, uint32_t dataLen, uint32_t *writeLen)
+int32_t OpenSSLAdaptor::Write(SCF_PolicyObj *obj, const uint8_t *data, uint32_t dataLen, uint32_t *writeLen)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_INFO("Openssl Write, obj or sslCtx is nullptr");
@@ -283,7 +283,7 @@ int32_t OpenSSLAdapter::Write(SCF_PolicyObj *obj, const uint8_t *data, uint32_t 
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::Close(SCF_PolicyObj *obj)
+int32_t OpenSSLAdaptor::Close(SCF_PolicyObj *obj)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_INFO("Openssl Close, obj or sslCtx is nullptr");
@@ -303,7 +303,7 @@ int32_t OpenSSLAdapter::Close(SCF_PolicyObj *obj)
     return SCF_SUCCESS;
 }
 
-uint32_t OpenSSLAdapter::CheckVersion(SCF_PolicyObj *obj)
+uint32_t OpenSSLAdaptor::CheckVersion(SCF_PolicyObj *obj)
 {
     if (obj == nullptr || obj->policyCtx == nullptr || obj->policyCtx->sslConfig == nullptr) {
         CCSEC_LOG_ERROR("Openssl Get Version Bit Fail, obj or polictCtx or sslConfig is nullptr.");
@@ -330,7 +330,7 @@ uint32_t OpenSSLAdapter::CheckVersion(SCF_PolicyObj *obj)
     return SSL_ERROR;
 }
 
-int32_t OpenSSLAdapter::SetFd(SCF_PolicyObj *obj, int32_t fd)
+int32_t OpenSSLAdaptor::SetFd(SCF_PolicyObj *obj, int32_t fd)
 {
     if (obj == nullptr) {
         return SCF_ERRNO_NULL_INPUT;
@@ -361,7 +361,7 @@ int32_t OpenSSLAdapter::SetFd(SCF_PolicyObj *obj, int32_t fd)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::InnerGetOpensslUpdateType(KeyUpdateType updateType, int *opensslUpdateType)
+int32_t OpenSSLAdaptor::InnerGetOpensslUpdateType(KeyUpdateType updateType, int *opensslUpdateType)
 {
     if (opensslUpdateType == nullptr) {
         return SCF_ERRNO_NULL_INPUT;
@@ -378,7 +378,7 @@ int32_t OpenSSLAdapter::InnerGetOpensslUpdateType(KeyUpdateType updateType, int 
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::KeyUpdate(SCF_PolicyObj *obj, KeyUpdateType updateType)
+int32_t OpenSSLAdaptor::KeyUpdate(SCF_PolicyObj *obj, KeyUpdateType updateType)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_ERROR("Openssl KeyUpdate obj or sslCtx is null.");
@@ -409,7 +409,7 @@ int32_t OpenSSLAdapter::KeyUpdate(SCF_PolicyObj *obj, KeyUpdateType updateType)
     return SCF_SUCCESS;
 }
 
-const char *OpenSSLAdapter::GetVersion(SCF_PolicyObj *obj)
+const char *OpenSSLAdaptor::GetVersion(SCF_PolicyObj *obj)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_ERROR("Openssl GetVersion obj or sslCtx is null.");
@@ -418,7 +418,7 @@ const char *OpenSSLAdapter::GetVersion(SCF_PolicyObj *obj)
     return LibSslApi::GetInstance().SSL_get_version(obj->sslCtx);
 }
 
-void *OpenSSLAdapter::GetPeerCert(SCF_PolicyObj *obj)
+void *OpenSSLAdaptor::GetPeerCert(SCF_PolicyObj *obj)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_ERROR("Openssl GetPeerCert obj or sslCtx is null.");
@@ -427,7 +427,7 @@ void *OpenSSLAdapter::GetPeerCert(SCF_PolicyObj *obj)
     return LibSslApi::GetInstance().SSL_get_peer_certificate(obj->sslCtx);
 }
 
-void *OpenSSLAdapter::GetCurrentCert(SCF_PolicyObj *obj)
+void *OpenSSLAdaptor::GetCurrentCert(SCF_PolicyObj *obj)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_ERROR("Openssl GetCurrentCert obj or sslCtx is null.");
@@ -436,7 +436,7 @@ void *OpenSSLAdapter::GetCurrentCert(SCF_PolicyObj *obj)
     return LibSslApi::GetInstance().SSL_get_certificate(obj->sslCtx);
 }
 
-const void *OpenSSLAdapter::CipherFind(SCF_PolicyObj *obj, uint8_t *cipherId)
+const void *OpenSSLAdaptor::CipherFind(SCF_PolicyObj *obj, uint8_t *cipherId)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         CCSEC_LOG_ERROR("Openssl CipherFind obj or sslCtx is null.");
@@ -446,7 +446,7 @@ const void *OpenSSLAdapter::CipherFind(SCF_PolicyObj *obj, uint8_t *cipherId)
 }
 
 // SCF_cal_ssl
-void OpenSSLAdapter::FreeSsl(SCF_PolicyCtx *ctx)
+void OpenSSLAdaptor::FreeSsl(SCF_PolicyCtx *ctx)
 {
     if (ctx == nullptr || ctx->sslConfig == nullptr) {
         return;
@@ -455,7 +455,7 @@ void OpenSSLAdapter::FreeSsl(SCF_PolicyCtx *ctx)
     ctx->sslConfig = nullptr;
 }
 
-int32_t OpenSSLAdapter::AddCaCertByFile(SSL_CTX *sslCtx, const uint8_t *path, const size_t &len)
+int32_t OpenSSLAdaptor::AddCaCertByFile(SSL_CTX *sslCtx, const uint8_t *path, const size_t &len)
 {
     // 外部保障路径合法
     if (path == nullptr || len == 0) {
@@ -483,7 +483,7 @@ static X509 *CertBuffer2X509(void *cert, const size_t &len)
     return x509;
 }
 
-int32_t OpenSSLAdapter::AddCaCertByBuffer(SSL_CTX *sslCtx, uint8_t *buf, const size_t &len)
+int32_t OpenSSLAdaptor::AddCaCertByBuffer(SSL_CTX *sslCtx, uint8_t *buf, const size_t &len)
 {
     X509_STORE *certStore = LibSslApi::GetInstance().SSL_CTX_get_cert_store(sslCtx);
     if (certStore == nullptr) {
@@ -499,7 +499,7 @@ int32_t OpenSSLAdapter::AddCaCertByBuffer(SSL_CTX *sslCtx, uint8_t *buf, const s
     return ret == SSL_SUCCESS ? SCF_SUCCESS : SCF_SSL_ERR_ADD_CA_CERT_TO_STORE;
 }
 
-int32_t OpenSSLAdapter::AddCaCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
+int32_t OpenSSLAdaptor::AddCaCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
 {
     if (certCtx->format != SCF_STORE_FORMAT_PEM) {
         CCSEC_LOG_ERROR("Openssl CertCtx format type Error.");
@@ -516,7 +516,7 @@ int32_t OpenSSLAdapter::AddCaCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
     return SCF_SSL_ERR_STORE_TYPE;
 }
 
-int32_t OpenSSLAdapter::AddEeCertByFile(SSL_CTX *sslCtx, const uint8_t *path, const size_t &pathLen)
+int32_t OpenSSLAdaptor::AddEeCertByFile(SSL_CTX *sslCtx, const uint8_t *path, const size_t &pathLen)
 {
     // 外部保障路径合法
     if (path == nullptr || pathLen == 0) {
@@ -534,7 +534,7 @@ int32_t OpenSSLAdapter::AddEeCertByFile(SSL_CTX *sslCtx, const uint8_t *path, co
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::LoadEeCert(SSL_CTX *sslCtx, BIO *b)
+int32_t OpenSSLAdaptor::LoadEeCert(SSL_CTX *sslCtx, BIO *b)
 {
     X509 *x509 = LibSslApi::GetInstance().PEM_read_bio_X509(b, nullptr, nullptr, nullptr);
     if (x509 == nullptr) {
@@ -550,7 +550,7 @@ int32_t OpenSSLAdapter::LoadEeCert(SSL_CTX *sslCtx, BIO *b)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::AddEeCertByBuffer(SSL_CTX *sslCtx, uint8_t *buf, const size_t &len)
+int32_t OpenSSLAdaptor::AddEeCertByBuffer(SSL_CTX *sslCtx, uint8_t *buf, const size_t &len)
 {
     if (len > INT32_MAX) {
         CCSEC_LOG_ERROR("Openssl AddEeCertByBuffer len is too large:" << len << ".");
@@ -567,7 +567,7 @@ int32_t OpenSSLAdapter::AddEeCertByBuffer(SSL_CTX *sslCtx, uint8_t *buf, const s
     return ret;
 }
 
-int32_t OpenSSLAdapter::AddEeCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
+int32_t OpenSSLAdaptor::AddEeCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
 {
     if (certCtx->format != SCF_STORE_FORMAT_PEM) {
         CCSEC_LOG_ERROR("Openssl AddEeCert CertCtx format type Error.");
@@ -584,7 +584,7 @@ int32_t OpenSSLAdapter::AddEeCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
     return SCF_SSL_ERR_STORE_TYPE;
 }
 
-X509_CRL *OpenSSLAdapter::ReadCrlByFile(const uint8_t *path, const size_t &pathLen)
+X509_CRL *OpenSSLAdaptor::ReadCrlByFile(const uint8_t *path, const size_t &pathLen)
 {
     if (path == nullptr || pathLen == 0) {
         CCSEC_LOG_ERROR("Openssl ReadCrlByFile path is nullptr or length is 0.");
@@ -608,7 +608,7 @@ X509_CRL *OpenSSLAdapter::ReadCrlByFile(const uint8_t *path, const size_t &pathL
     return crl;
 }
 
-X509_CRL *OpenSSLAdapter::ReadCrlByBuffer(void *buf, const size_t &len)
+X509_CRL *OpenSSLAdaptor::ReadCrlByBuffer(void *buf, const size_t &len)
 {
     if (buf == nullptr || len == 0 || len > INT32_MAX) {
         CCSEC_LOG_ERROR("Openssl ReadCrlByBuffer buf is nullptr or len is invalid.");
@@ -625,7 +625,7 @@ X509_CRL *OpenSSLAdapter::ReadCrlByBuffer(void *buf, const size_t &len)
     return crl;
 }
 
-int32_t OpenSSLAdapter::AddCrl(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
+int32_t OpenSSLAdaptor::AddCrl(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
 {
     int32_t ret;
     X509_CRL *crl;
@@ -664,7 +664,7 @@ int32_t OpenSSLAdapter::AddCrl(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::AddEeChainByFile(SSL_CTX *sslCtx, uint8_t *path, size_t pathLen)
+int32_t OpenSSLAdaptor::AddEeChainByFile(SSL_CTX *sslCtx, uint8_t *path, size_t pathLen)
 {
     if (path == nullptr || pathLen == 0) {
         CCSEC_LOG_ERROR("Openssl AddEeChainByFile path is nullptr or len is 0.");
@@ -680,7 +680,7 @@ int32_t OpenSSLAdapter::AddEeChainByFile(SSL_CTX *sslCtx, uint8_t *path, size_t 
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::LoadCaChain(SSL_CTX *sslCtx, BIO *b)
+int32_t OpenSSLAdaptor::LoadCaChain(SSL_CTX *sslCtx, BIO *b)
 {
     X509 *ca;
     while ((ca = LibSslApi::GetInstance().PEM_read_bio_X509(b, nullptr, nullptr, nullptr)) != nullptr) {
@@ -693,7 +693,7 @@ int32_t OpenSSLAdapter::LoadCaChain(SSL_CTX *sslCtx, BIO *b)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::AddEeChainByBuffer(SSL_CTX *sslCtx, uint8_t *buf, size_t len)
+int32_t OpenSSLAdaptor::AddEeChainByBuffer(SSL_CTX *sslCtx, uint8_t *buf, size_t len)
 {
     if (len > INT32_MAX) {
         CCSEC_LOG_ERROR("Openssl AddEeChainByBuffer len is too large:" << len << ".");
@@ -718,7 +718,7 @@ int32_t OpenSSLAdapter::AddEeChainByBuffer(SSL_CTX *sslCtx, uint8_t *buf, size_t
     return ret;
 }
 
-int32_t OpenSSLAdapter::AddEeChain(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
+int32_t OpenSSLAdaptor::AddEeChain(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
 {
     if (certCtx->format != SCF_STORE_FORMAT_PEM) {
         CCSEC_LOG_ERROR("Openssl AddEeChain CertCtx format type Error.");
@@ -735,7 +735,7 @@ int32_t OpenSSLAdapter::AddEeChain(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx)
     return SCF_SSL_ERR_STORE_TYPE;
 }
 
-int32_t OpenSSLAdapter::AddCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx, SCF_CERT_TYPE type)
+int32_t OpenSSLAdaptor::AddCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx, SCF_CERT_TYPE type)
 {
     if (type == SCF_CERT_TYPE_CA) {
         return AddCaCert(ctx, certCtx);
@@ -755,7 +755,7 @@ int32_t OpenSSLAdapter::AddCert(SCF_PolicyCtx *ctx, SCF_FILE_CTX *certCtx, SCF_C
 }
 
 
-int32_t OpenSSLAdapter::SetKeyByFile(SSL_CTX *sslCtx, const uint8_t *file, const size_t &len)
+int32_t OpenSSLAdaptor::SetKeyByFile(SSL_CTX *sslCtx, const uint8_t *file, const size_t &len)
 {
     if (file == nullptr || len == 0) {
         CCSEC_LOG_ERROR("Openssl SetKeyByFile path is nullptr or len is 0.");
@@ -771,7 +771,7 @@ int32_t OpenSSLAdapter::SetKeyByFile(SSL_CTX *sslCtx, const uint8_t *file, const
     return SCF_SUCCESS;
 }
 
-EVP_PKEY *OpenSSLAdapter::KeyBuffer2Evp(uint8_t *key, const size_t &len)
+EVP_PKEY *OpenSSLAdaptor::KeyBuffer2Evp(uint8_t *key, const size_t &len)
 {
     if (len > INT32_MAX) {
         CCSEC_LOG_ERROR("Openssl KeyBuffer2Evp len is too large:" << len << ".");
@@ -788,7 +788,7 @@ EVP_PKEY *OpenSSLAdapter::KeyBuffer2Evp(uint8_t *key, const size_t &len)
     return evpKey;
 }
 
-int32_t OpenSSLAdapter::SetKeyByBuffer(SSL_CTX *sslCtx, uint8_t *buf, const size_t &len)
+int32_t OpenSSLAdaptor::SetKeyByBuffer(SSL_CTX *sslCtx, uint8_t *buf, const size_t &len)
 {
     EVP_PKEY *evpKey = KeyBuffer2Evp(buf, len);
     if (evpKey == nullptr) {
@@ -827,7 +827,7 @@ int DefaultPemPasswordCb(char *buf, int size, int rwflag, void *userdata)
     return i;
 }
 
-int32_t OpenSSLAdapter::SetKey(SCF_PolicyCtx *ctx, SCF_FILE_CTX *keyCtx)
+int32_t OpenSSLAdaptor::SetKey(SCF_PolicyCtx *ctx, SCF_FILE_CTX *keyCtx)
 {
     if (ctx == nullptr || ctx->sslConfig == nullptr || keyCtx == nullptr) {
         CCSEC_LOG_ERROR("Openssl SetKey ctx or sslConfig or keyCtx is null.");
@@ -900,7 +900,7 @@ static uint64_t GetCipherSuitesStrLen(const uint16_t *cipherSuites, uint32_t cip
     return len;
 }
 
-int32_t OpenSSLAdapter::SetCipherSuites(SCF_PolicyCtx *ctx, const uint16_t *cipherSuites,
+int32_t OpenSSLAdaptor::SetCipherSuites(SCF_PolicyCtx *ctx, const uint16_t *cipherSuites,
     uint32_t cipherSuitesSize)
 {
     uint64_t offset = 0;
@@ -943,7 +943,7 @@ int32_t OpenSSLAdapter::SetCipherSuites(SCF_PolicyCtx *ctx, const uint16_t *ciph
     return SCF_SUCCESS;
 }
 
-uint32_t OpenSSLAdapter::MapVersion2NoOpt(int64_t version, uint32_t *sslOp)
+uint32_t OpenSSLAdaptor::MapVersion2NoOpt(int64_t version, uint32_t *sslOp)
 {
     // support TLSv1.2 and TLSv1.3
     switch (version) {
@@ -960,7 +960,7 @@ uint32_t OpenSSLAdapter::MapVersion2NoOpt(int64_t version, uint32_t *sslOp)
     return SSL_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::SetProtocolVersion(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_t maxVersion,
+int32_t OpenSSLAdaptor::SetProtocolVersion(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_t maxVersion,
     uint32_t *forbidVersion, uint32_t forbidVersionLen)
 {
     SSL_CTX *sslCtxConfig = ctx->sslConfig;
@@ -990,13 +990,13 @@ int32_t OpenSSLAdapter::SetProtocolVersion(SCF_PolicyCtx *ctx, uint32_t minVersi
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::SetAppVerifyCallback(SCF_PolicyCtx *ctx, SCF_AppVerifyFunc cb, void *arg)
+int32_t OpenSSLAdaptor::SetAppVerifyCallback(SCF_PolicyCtx *ctx, SCF_AppVerifyFunc cb, void *arg)
 {
     LibSslApi::GetInstance().SSL_CTX_set_cert_verify_callback(ctx->sslConfig, cb, arg);
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::CheckPrivateKey(SCF_PolicyCtx *ctx)
+int32_t OpenSSLAdaptor::CheckPrivateKey(SCF_PolicyCtx *ctx)
 {
     int32_t ret = LibSslApi::GetInstance().SSL_CTX_check_private_key(ctx->sslConfig);
     if (ret != SSL_SUCCESS) {
@@ -1007,7 +1007,7 @@ int32_t OpenSSLAdapter::CheckPrivateKey(SCF_PolicyCtx *ctx)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::SetVerifyMode(SCF_PolicyCtx *policyCtx, uint32_t verifyMode)
+int32_t OpenSSLAdaptor::SetVerifyMode(SCF_PolicyCtx *policyCtx, uint32_t verifyMode)
 {
     if (policyCtx == nullptr || policyCtx->sslConfig == nullptr) {
         CCSEC_LOG_ERROR("Openssl SetVerifyMode ctx or sslConfig is null.");
@@ -1033,7 +1033,7 @@ int32_t OpenSSLAdapter::SetVerifyMode(SCF_PolicyCtx *policyCtx, uint32_t verifyM
     return SCF_SUCCESS;
 }
 
-const SSL_METHOD *OpenSSLAdapter::CalGetSslMethod(SCF_ROLE role)
+const SSL_METHOD *OpenSSLAdaptor::CalGetSslMethod(SCF_ROLE role)
 {
     const SSL_METHOD *method = nullptr;
     if (role == SCF_ROLE_SERVER) {
@@ -1044,7 +1044,7 @@ const SSL_METHOD *OpenSSLAdapter::CalGetSslMethod(SCF_ROLE role)
     return method;
 }
 
-int32_t OpenSSLAdapter::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_t maxVersion,
+int32_t OpenSSLAdaptor::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_t maxVersion,
     uint32_t *forbidVersion, uint32_t forbidVersionLen)
 {
     const SSL_METHOD *method = CalGetSslMethod(ctx->role);
@@ -1066,12 +1066,12 @@ int32_t OpenSSLAdapter::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_
             // OpenSSL 3.0+ Provider 路径：使用硬件加速的 library context
             sslCtxConfig = LibSslApi::GetInstance().SSL_CTX_new_ex(providerCtx, nullptr, method);
             if (sslCtxConfig != nullptr) {
-                CCSEC_LOG_INFO("OpenSSLAdapter: SSL_CTX created with hardware provider context."
+                CCSEC_LOG_INFO("OpenSSLAdaptor: SSL_CTX created with hardware provider context."
                     << " Crypto engine: " << (m_cryptoEngine->IsHardwareAccelerated()
                         ? "HARDWARE" : "SOFTWARE")
                     << ". Algorithms: " << m_cryptoEngine->GetAcceleratedAlgorithms());
             } else {
-                CCSEC_LOG_WARN("OpenSSLAdapter: SSL_CTX_new_ex with provider context failed,"
+                CCSEC_LOG_WARN("OpenSSLAdaptor: SSL_CTX_new_ex with provider context failed,"
                     << " falling back to default SSL_CTX_new.");
             }
         }
@@ -1110,7 +1110,7 @@ int32_t OpenSSLAdapter::InitSsl(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_
     return ret;
 }
 
-int32_t OpenSSLAdapter::InitSslCustomer(SCF_PolicyCtx *ctx)
+int32_t OpenSSLAdaptor::InitSslCustomer(SCF_PolicyCtx *ctx)
 {
     const SSL_METHOD *method = CalGetSslMethod(ctx->role);
     if (method == nullptr) {
@@ -1151,7 +1151,7 @@ int32_t OpenSSLAdapter::InitSslCustomer(SCF_PolicyCtx *ctx)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::InitPolicyByMode(SCF_PolicyCtx *ctx)
+int32_t OpenSSLAdaptor::InitPolicyByMode(SCF_PolicyCtx *ctx)
 {
     int ret;
 
@@ -1221,7 +1221,7 @@ static int32_t PskUseSessionCbWrapper(void *ssl, const void *md, const unsigned 
     return SSL_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::SetPskFindSessionCallback(SCF_PolicyCtx *ctx, SCF_PskFindSessionCb cb)
+int32_t OpenSSLAdaptor::SetPskFindSessionCallback(SCF_PolicyCtx *ctx, SCF_PskFindSessionCb cb)
 {
     if (ctx == nullptr || ctx->sslConfig == nullptr) {
         CCSEC_LOG_ERROR("Openssl SetPskFindSessionCallback ctx or sslConfig is nullptr.");
@@ -1233,7 +1233,7 @@ int32_t OpenSSLAdapter::SetPskFindSessionCallback(SCF_PolicyCtx *ctx, SCF_PskFin
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::SetPskUseSessionCallback(SCF_PolicyCtx *ctx, SCF_PskUseSessionCb cb)
+int32_t OpenSSLAdaptor::SetPskUseSessionCallback(SCF_PolicyCtx *ctx, SCF_PskUseSessionCb cb)
 {
     if (ctx == nullptr || ctx->sslConfig == nullptr) {
         CCSEC_LOG_ERROR("Openssl SetPskUseSessionCallback ctx or sslConfig is nullptr.");
@@ -1245,12 +1245,12 @@ int32_t OpenSSLAdapter::SetPskUseSessionCallback(SCF_PolicyCtx *ctx, SCF_PskUseS
     return SCF_SUCCESS;
 }
 
-SCF_Session *OpenSSLAdapter::SessionNew()
+SCF_Session *OpenSSLAdaptor::SessionNew()
 {
     return LibSslApi::GetInstance().SSL_SESSION_new();
 }
 
-int32_t OpenSSLAdapter::SessionSetMasterKey(SCF_Session *sess, const uint8_t *masterKey, size_t masterKeySize)
+int32_t OpenSSLAdaptor::SessionSetMasterKey(SCF_Session *sess, const uint8_t *masterKey, size_t masterKeySize)
 {
     if (LibSslApi::GetInstance().SSL_SESSION_set1_master_key(sess, masterKey, masterKeySize) != SSL_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl SessionSetMasterKey Set Sess Master Key Fail.");
@@ -1259,7 +1259,7 @@ int32_t OpenSSLAdapter::SessionSetMasterKey(SCF_Session *sess, const uint8_t *ma
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::SessionSetCipher(SCF_Session *sess, const void *cipherSuite, size_t cipherLen)
+int32_t OpenSSLAdaptor::SessionSetCipher(SCF_Session *sess, const void *cipherSuite, size_t cipherLen)
 {
     (void)cipherLen; // 适应hitls
     if (LibSslApi::GetInstance().SSL_SESSION_set_cipher(sess, cipherSuite) != SSL_SUCCESS) {
@@ -1269,7 +1269,7 @@ int32_t OpenSSLAdapter::SessionSetCipher(SCF_Session *sess, const void *cipherSu
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::SessionGetCipher(SCF_Session *sess, void **cipherSuite, size_t &cipherLen)
+int32_t OpenSSLAdaptor::SessionGetCipher(SCF_Session *sess, void **cipherSuite, size_t &cipherLen)
 {
     cipherLen = 0; // 初始化为0
     if (cipherSuite == nullptr) {
@@ -1285,7 +1285,7 @@ int32_t OpenSSLAdapter::SessionGetCipher(SCF_Session *sess, void **cipherSuite, 
     return SCF_SUCCESS;
 }
 
-void OpenSSLAdapter::SessionFreeCipher(void **cipherSuite, size_t &cipherLen)
+void OpenSSLAdaptor::SessionFreeCipher(void **cipherSuite, size_t &cipherLen)
 {
     cipherLen = 0;
     if (cipherSuite != nullptr) {
@@ -1293,7 +1293,7 @@ void OpenSSLAdapter::SessionFreeCipher(void **cipherSuite, size_t &cipherLen)
     }
 }
 
-void OpenSSLAdapter::FreeBuffer(char **buffer, size_t &bufferLen)
+void OpenSSLAdaptor::FreeBuffer(char **buffer, size_t &bufferLen)
 {
     if (buffer == nullptr || *buffer == nullptr || bufferLen == 0) {
         return;
@@ -1304,7 +1304,7 @@ void OpenSSLAdapter::FreeBuffer(char **buffer, size_t &bufferLen)
     bufferLen = 0;
 }
 
-int32_t OpenSSLAdapter::ProtocolStrToInt(const char *version, int32_t &intVer)
+int32_t OpenSSLAdaptor::ProtocolStrToInt(const char *version, int32_t &intVer)
 {
     std::unordered_map<std::string, int32_t> protocolMap{
         {"TLSv1.2", TLS1_2_VERSION},
@@ -1318,7 +1318,7 @@ int32_t OpenSSLAdapter::ProtocolStrToInt(const char *version, int32_t &intVer)
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::ProtocolIntToStr(const int32_t &version, std::string &strVer)
+int32_t OpenSSLAdaptor::ProtocolIntToStr(const int32_t &version, std::string &strVer)
 {
     std::unordered_map<int32_t, std::string> protocolMap{
         {TLS1_2_VERSION, "TLSv1.2"},
@@ -1333,7 +1333,7 @@ int32_t OpenSSLAdapter::ProtocolIntToStr(const int32_t &version, std::string &st
 }
 
 
-int32_t OpenSSLAdapter::SessionSetProtocolVersion(SCF_Session *sess, const char *version)
+int32_t OpenSSLAdaptor::SessionSetProtocolVersion(SCF_Session *sess, const char *version)
 {
     int sslVersion = 0;
     if (ProtocolStrToInt(version, sslVersion) != SCF_SUCCESS) {
@@ -1348,7 +1348,7 @@ int32_t OpenSSLAdapter::SessionSetProtocolVersion(SCF_Session *sess, const char 
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::SessionGetProtocolVersion(SCF_Session *sess, char **version, size_t &versionLen)
+int32_t OpenSSLAdaptor::SessionGetProtocolVersion(SCF_Session *sess, char **version, size_t &versionLen)
 {
     versionLen = 0;
     int intVer = LibSslApi::GetInstance().SSL_SESSION_get_protocol_version(sess);
@@ -1372,12 +1372,12 @@ int32_t OpenSSLAdapter::SessionGetProtocolVersion(SCF_Session *sess, char **vers
     return SCF_SUCCESS;
 }
 
-void OpenSSLAdapter::SessionFree(SCF_Session *sess)
+void OpenSSLAdaptor::SessionFree(SCF_Session *sess)
 {
     LibSslApi::GetInstance().SSL_SESSION_free(sess);
 }
 
-int32_t OpenSSLAdapter::GetCertVersion(const void *cert)
+int32_t OpenSSLAdaptor::GetCertVersion(const void *cert)
 {
     if (cert == nullptr) {
         return -1;
@@ -1391,7 +1391,7 @@ int32_t OpenSSLAdapter::GetCertVersion(const void *cert)
     return static_cast<int32_t>(version);
 }
 
-char *OpenSSLAdapter::GetCertStartTime(const void *cert)
+char *OpenSSLAdaptor::GetCertStartTime(const void *cert)
 {
     if (cert == nullptr) {
         return nullptr;
@@ -1411,7 +1411,7 @@ char *OpenSSLAdapter::GetCertStartTime(const void *cert)
     return time;
 }
 
-char *OpenSSLAdapter::GetCertEndTime(const void *cert)
+char *OpenSSLAdaptor::GetCertEndTime(const void *cert)
 {
     if (cert == nullptr) {
         return nullptr;
@@ -1431,7 +1431,7 @@ char *OpenSSLAdapter::GetCertEndTime(const void *cert)
     return time;
 }
 
-uint8_t *OpenSSLAdapter::GetCertSerialNumber(const void *cert, uint32_t *dataLen)
+uint8_t *OpenSSLAdaptor::GetCertSerialNumber(const void *cert, uint32_t *dataLen)
 {
     *dataLen = 0;
     if (cert == nullptr) {
@@ -1524,7 +1524,7 @@ static int32_t DecodeDerUtf8String(const unsigned char *encoded, int encodedLen,
  * @param value 解析后的扩展值。
  * @return 成功返回 SCF_SUCCESS，失败返回对应错误码。
  */
-int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid, std::string &value)
+int32_t OpenSSLAdaptor::GetCertExtensionByOid(const void *cert, const char *oid, std::string &value)
 {
     value.clear();
     if (cert == nullptr || oid == nullptr) {
@@ -1567,7 +1567,7 @@ int32_t OpenSSLAdapter::GetCertExtensionByOid(const void *cert, const char *oid,
     return DecodeDerUtf8String(dataPtr, dataLen, value);
 }
 
-int32_t OpenSSLAdapter::GetCipherSuites(SCF_PolicyCtx *ctx, uint16_t *data, uint32_t dataLen,
+int32_t OpenSSLAdaptor::GetCipherSuites(SCF_PolicyCtx *ctx, uint16_t *data, uint32_t dataLen,
     uint32_t *cipherSuitesSize)
 {
     SSL_CTX *sslCtxConfig = ctx->sslConfig;
@@ -1587,7 +1587,7 @@ int32_t OpenSSLAdapter::GetCipherSuites(SCF_PolicyCtx *ctx, uint16_t *data, uint
     return SCF_SUCCESS;
 }
 
-int32_t OpenSSLAdapter::NegotiateCipherSuite(SCF_PolicyObj *obj, uint16_t *data)
+int32_t OpenSSLAdaptor::NegotiateCipherSuite(SCF_PolicyObj *obj, uint16_t *data)
 {
     if (obj == nullptr || obj->sslCtx == nullptr) {
         return SCF_ERRNO_NULL_INPUT;
@@ -1602,12 +1602,12 @@ int32_t OpenSSLAdapter::NegotiateCipherSuite(SCF_PolicyObj *obj, uint16_t *data)
     return SCF_SUCCESS;
 }
 
-void OpenSSLAdapter::FreeCert(void *cert)
+void OpenSSLAdaptor::FreeCert(void *cert)
 {
     LibCryptoApi::GetInstance().X509_free(cert);
 }
 
-int32_t OpenSSLAdapter::X509VerifyChain(void *storeCtx)
+int32_t OpenSSLAdaptor::X509VerifyChain(void *storeCtx)
 {
     if (storeCtx == nullptr) {
         return SCF_ERRNO_NULL_INPUT;

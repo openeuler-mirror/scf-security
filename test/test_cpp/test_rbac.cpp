@@ -46,7 +46,7 @@ static AbstractTLSAdaptor **GetLibraryAdaptorSlot()
     return slot;
 }
 
-class ConnectionAdaptorStub final : public OpenSSLAdapter {
+class ConnectionAdaptorStub final : public OpenSSLAdaptor {
 public:
     int32_t Connect(SCF_PolicyObj *obj) override
     {
