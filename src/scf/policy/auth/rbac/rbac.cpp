@@ -67,7 +67,7 @@ static int32_t InsertPolicyRule(SCF_PolicyCtx *ctx, SCF_PolicyRule &rule)
     }
     rule.ruleId = ctx->nextPolicyRuleId;
     if (!ctx->policyRuleMap.emplace(rule.ruleId, rule).second) {
-        return SCF_ERROR;
+        return SCF_ERRNO_RBAC_POLICY_FULL;
     }
     ctx->nextPolicyRuleId =
         ctx->nextPolicyRuleId == std::numeric_limits<uint32_t>::max() ? 0 : ctx->nextPolicyRuleId + 1;
@@ -310,7 +310,7 @@ int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LE
         }
         if (memcpy_s(nodeIdList[*actualCount], MAX_NODE_ID_LEN, mapping.first.data(), mapping.first.size()) != EOK) {
             CCSEC_LOG_ERROR("|SCF_ListMasterNodes|END|returnF||copy node id failed");
-            return SCF_ERROR;
+            return SCF_ERRNO_MEM_CPY;
         }
         nodeIdList[*actualCount][mapping.first.size()] = '\0';
         ++(*actualCount);

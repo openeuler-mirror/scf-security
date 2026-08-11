@@ -615,6 +615,19 @@ TEST_F(TestRbac, PolicyRuleCapacityRejectsEntryBeyondLimit)
     EXPECT_EQ(ruleId, 123U);
 }
 
+TEST_F(TestRbac, PolicyRuleIdCollisionReturnsIdSpaceError)
+{
+    uint32_t firstRuleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-1", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &firstRuleId), SCF_SUCCESS);
+    ctx_->nextPolicyRuleId = firstRuleId;
+
+    uint32_t conflictingRuleId = 123;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "node-2", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &conflictingRuleId), SCF_ERRNO_RBAC_POLICY_FULL);
+    EXPECT_EQ(conflictingRuleId, 123U);
+}
+
 TEST_F(TestRbac, PolicyRuleIdExhaustionIsPermanent)
 {
     ctx_->nextPolicyRuleId = std::numeric_limits<uint32_t>::max() - 1;
