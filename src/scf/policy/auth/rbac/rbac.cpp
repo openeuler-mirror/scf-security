@@ -17,6 +17,7 @@
 #include <type_traits>
 #include <utility>
 #include "custom_logger.h"
+#include "policy_matcher.h"
 #include "scf.h"
 #include "scf_inner.h"
 #include "securec.h"
@@ -47,6 +48,16 @@ static bool IsValidBitmap(uint32_t bitmap, uint32_t validBitmap)
 static bool IsValidPolicyEffect(SCF_POLICY_EFFECT effect)
 {
     return effect == SCF_POLICY_EFFECT_ALLOW || effect == SCF_POLICY_EFFECT_DENY;
+}
+
+static bool IsSingleResourceType(uint32_t resourceType)
+{
+    return resourceType == SCF_RES_TYPE_FD || resourceType == SCF_RES_TYPE_NUMA || resourceType == SCF_RES_TYPE_ADDR;
+}
+
+static bool IsSingleResourceAction(SCF_RESOURCE_ACTION action)
+{
+    return action == SCF_RES_ACTION_APPLY || action == SCF_RES_ACTION_RELEASE;
 }
 
 static bool IsSamePolicyRuleKey(const SCF_PolicyRule &left, const SCF_PolicyRule &right)
@@ -422,5 +433,85 @@ int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules, uint32_t 
     }
     CCSEC_LOG_DEBUG("|SCF_ListPolicyRules|END|returnS||list policy rules success");
     return SCF_SUCCESS;
+}
+
+static int32_t ResolveLocalIdentity(
+    SCF_PolicyCtx *ctx, const void *localCert, char *localNodeId, size_t localNodeIdSize, SCF_RBAC_ROLE *role)
+{
+    size_t localNodeIdLen = 0;
+    int32_t ret = SCF_GetCertNodeId(localCert, localNodeId, localNodeIdSize, &localNodeIdLen);
+    if (ret != SCF_SUCCESS) {
+        CCSEC_LOG_ERROR("|SCF_CheckResourcePermission|END|returnF||get local node id failed, ret:" << ret);
+        return ret;
+    }
+
+    SCF_RBAC_ROLE_SOURCE source = SCF_RBAC_ROLE_SRC_NONE;
+    ret = SCF_GetNodeRbacRole(ctx, localCert, nullptr, role, &source);
+    if (ret != SCF_SUCCESS) {
+        CCSEC_LOG_ERROR("|SCF_CheckResourcePermission|END|returnF||get local node role failed, ret:" << ret);
+    }
+    return ret;
+}
+
+static bool GetCustomPolicyEffect(SCF_PolicyCtx *ctx, const char *localNodeId, const char *targetNodeId,
+    uint32_t resourceType, SCF_RESOURCE_ACTION action, SCF_POLICY_EFFECT *effect)
+{
+    // 规则匹配和规则更新使用同一把锁，确保单次鉴权读取一致的规则状态。
+    std::lock_guard<std::mutex> lock(ctx->policyRuleMutex);
+    return MatchPolicyRule(ctx->policyRuleMap, localNodeId, targetNodeId, resourceType, action, effect);
+}
+
+static int32_t CheckDefaultResourcePermission(SCF_RBAC_ROLE role, const char *localNodeId, const char *targetNodeId)
+{
+    if (role == SCF_RBAC_ROLE_MASTER) {
+        CCSEC_LOG_DEBUG("|SCF_CheckResourcePermission|END|returnS||master default rule allows access");
+        return SCF_SUCCESS;
+    }
+    if (role == SCF_RBAC_ROLE_SLAVE && std::strcmp(localNodeId, targetNodeId) == 0) {
+        CCSEC_LOG_DEBUG("|SCF_CheckResourcePermission|END|returnS||slave local default rule allows access");
+        return SCF_SUCCESS;
+    }
+    if (role == SCF_RBAC_ROLE_SLAVE) {
+        CCSEC_LOG_ERROR("|SCF_CheckResourcePermission|END|returnF||slave cross-node access is denied");
+        return SCF_ERRNO_RBAC_DENIED;
+    }
+    CCSEC_LOG_ERROR("|SCF_CheckResourcePermission|END|returnF||node role is unknown");
+    return SCF_ERRNO_RBAC_ROLE_UNKNOWN;
+}
+
+int32_t SCF_CheckResourcePermission(SCF_PolicyCtx *ctx, const void *localCert, const char *targetNodeId,
+    uint32_t resourceType, SCF_RESOURCE_ACTION action)
+{
+    if (ctx == nullptr || localCert == nullptr || targetNodeId == nullptr) {
+        CCSEC_LOG_ERROR("|SCF_CheckResourcePermission|END|returnF||null input");
+        return SCF_ERRNO_NULL_INPUT;
+    }
+    if (!IsValidNodeId(targetNodeId) || !IsSingleResourceType(resourceType) || !IsSingleResourceAction(action)) {
+        CCSEC_LOG_ERROR("|SCF_CheckResourcePermission|END|returnF||invalid target node id, resource type or action");
+        return SCF_ERRNO_INVALID_PARAM;
+    }
+    CHECK_SCF_INIT_RET("SCF_CheckResourcePermission");
+    if (!ctx->rbacEnabled.load()) {
+        CCSEC_LOG_ERROR("|SCF_CheckResourcePermission|END|returnF||RBAC is disabled");
+        return SCF_ERRNO_RBAC_DISABLED;
+    }
+
+    char localNodeId[MAX_NODE_ID_LEN] = {0};
+    SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+    int32_t ret = ResolveLocalIdentity(ctx, localCert, localNodeId, sizeof(localNodeId), &role);
+    if (ret != SCF_SUCCESS) {
+        return ret;
+    }
+
+    SCF_POLICY_EFFECT effect = SCF_POLICY_EFFECT_DENY;
+    if (GetCustomPolicyEffect(ctx, localNodeId, targetNodeId, resourceType, action, &effect)) {
+        if (effect == SCF_POLICY_EFFECT_ALLOW) {
+            CCSEC_LOG_DEBUG("|SCF_CheckResourcePermission|END|returnS||custom policy rule allows access");
+            return SCF_SUCCESS;
+        }
+        CCSEC_LOG_ERROR("|SCF_CheckResourcePermission|END|returnF||custom policy rule denies access");
+        return SCF_ERRNO_RBAC_DENIED;
+    }
+    return CheckDefaultResourcePermission(role, localNodeId, targetNodeId);
 }
 }

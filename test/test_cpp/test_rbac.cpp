@@ -13,6 +13,8 @@
 
 #include <gtest/gtest.h>
 #include <dlfcn.h>
+#include <atomic>
+#include <thread>
 #include <limits>
 #include <unistd.h>
 #include <vector>
@@ -311,6 +313,12 @@ TEST_F(TestRbac, RbacSr02ErrorsHaveMessages)
     EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_POLICY_INVALID), "RBAC policy rule is invalid");
 }
 
+TEST_F(TestRbac, RbacSr03ErrorsHaveMessages)
+{
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_DISABLED), "RBAC is disabled");
+    EXPECT_STREQ(GetErrorMessage(SCF_ERRNO_RBAC_DENIED), "RBAC access is denied");
+}
+
 TEST_F(TestRbac, NodeRoleMappingRequiresInitializedScf)
 {
     SCF_DeInit();
@@ -324,6 +332,8 @@ TEST_F(TestRbac, NodeRoleMappingRequiresInitializedScf)
     EXPECT_EQ(SCF_GetCertNodeId(&cert, nodeId, sizeof(nodeId), &nodeIdLen), SCF_ERRNO_NOT_INIT);
     EXPECT_EQ(SCF_GetCertRbacRole(&cert, &role), SCF_ERRNO_NOT_INIT);
     EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, "node-1", &role, &src), SCF_ERRNO_NOT_INIT);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, &cert, "node-1", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_NOT_INIT);
     char libPath[] = "/usr/lib64";
     ASSERT_EQ(SCF_Init(SCF_INIT_FLAG_OPENSSL, libPath), SCF_SUCCESS);
 }
@@ -691,4 +701,158 @@ TEST_F(TestRbac, EnableRbacRejectsNullContext)
     EXPECT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
     EXPECT_EQ(SCF_EnableRbac(ctx_, false), SCF_SUCCESS);
 }
+
+TEST_F(TestRbac, ResourcePermissionRequiresEnabledRbacAndValidRequest)
+{
+    void *cert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "node-target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_RBAC_DISABLED);
+    EXPECT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(nullptr, cert, "node-target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, nullptr, "node-target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "node-target", SCF_RES_TYPE_ALL, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "node-target", SCF_RES_TYPE_FD,
+        static_cast<SCF_RESOURCE_ACTION>(SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE)), SCF_ERRNO_INVALID_PARAM);
 }
+
+TEST_F(TestRbac, ResourcePermissionAppliesDefaultRules)
+{
+    void *masterCert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(masterCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, masterCert, "any-node", SCF_RES_TYPE_ADDR, SCF_RES_ACTION_RELEASE),
+        SCF_SUCCESS);
+}
+
+TEST_F(TestRbac, ResourcePermissionAppliesSlaveAndUnknownDefaults)
+{
+    void *slaveCert = LoadRbacCert("rbac_slave_cert.pem");
+    ASSERT_NE(slaveCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, slaveCert, "node-slave-cert", SCF_RES_TYPE_NUMA,
+        SCF_RES_ACTION_APPLY), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, slaveCert, "other-node", SCF_RES_TYPE_NUMA, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_RBAC_DENIED);
+}
+
+TEST_F(TestRbac, ResourcePermissionPrioritizesCustomRules)
+{
+    void *slaveCert = LoadRbacCert("rbac_slave_cert.pem");
+    ASSERT_NE(slaveCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-slave-cert", "*", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_DENY, &ruleId), SCF_SUCCESS);
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-slave-cert", "other-node", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, slaveCert, "other-node", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_SUCCESS);
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-slave-cert", "resource-target", SCF_RES_TYPE_ALL,
+        SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE, SCF_POLICY_EFFECT_DENY, &ruleId), SCF_SUCCESS);
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-slave-cert", "resource-target", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, slaveCert, "resource-target", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), SCF_SUCCESS);
+}
+
+TEST_F(TestRbac, ResourcePermissionPrioritizesDenyForEquallySpecificRules)
+{
+    void *masterCert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(masterCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-cert", "other-node", SCF_RES_TYPE_ALL, SCF_RES_ACTION_APPLY,
+                  SCF_POLICY_EFFECT_ALLOW, &ruleId),
+        SCF_SUCCESS);
+    ASSERT_EQ(SCF_AddPolicyRule(
+                  ctx_, "node-cert", "*", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_DENY, &ruleId),
+        SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, masterCert, "other-node", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_RBAC_DENIED);
+}
+
+TEST_F(TestRbac, ResourcePermissionReturnsUnknownRole)
+{
+    void *nodeOnlyCert = LoadRbacCert("rbac_node_only_cert.pem");
+    ASSERT_NE(nodeOnlyCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, nodeOnlyCert, "node-mapped", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), SCF_ERRNO_RBAC_ROLE_UNKNOWN);
+}
+
+TEST_F(TestRbac, ResourcePermissionRejectsCertificateWithoutNodeId)
+{
+    void *cert = LoadRbacCert("test_cert/client.pem");
+    ASSERT_NE(cert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "node-target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_CERT_NODE_ID_ABSENT);
+}
+
+TEST_F(TestRbac, ResourcePermissionPreservesMalformedNodeIdError)
+{
+    void *cert = LoadRbacCert("rbac_invalid_utf8_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "node-target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_SSL_ERR_PARSE_CERT);
+}
+
+TEST_F(TestRbac, ResourcePermissionPreservesMalformedRoleError)
+{
+    void *cert = LoadRbacCert("rbac_unknown_role_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "node-target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_SSL_ERR_PARSE_CERT);
+}
+
+TEST_F(TestRbac, ResourcePermissionSupportsConcurrentRuleUpdates)
+{
+    void *slaveCert = LoadRbacCert("rbac_slave_cert.pem");
+    ASSERT_NE(slaveCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    std::atomic_bool hasUnexpectedResult{false};
+    std::atomic_bool start{false};
+    std::atomic_uint32_t readyCount{0};
+    std::thread checker([&]() {
+        ++readyCount;
+        while (!start.load()) {
+            std::this_thread::yield();
+        }
+        for (uint32_t i = 0; i < 1000; ++i) {
+            int32_t ret = SCF_CheckResourcePermission(ctx_, slaveCert, "other-node", SCF_RES_TYPE_FD,
+                SCF_RES_ACTION_APPLY);
+            if (ret != SCF_SUCCESS && ret != SCF_ERRNO_RBAC_DENIED) {
+                hasUnexpectedResult.store(true);
+                return;
+            }
+        }
+    });
+    std::thread updater([&]() {
+        ++readyCount;
+        while (!start.load()) {
+            std::this_thread::yield();
+        }
+        for (uint32_t i = 0; i < 100; ++i) {
+            uint32_t ruleId = 0;
+            ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-slave-cert", "other-node", SCF_RES_TYPE_FD,
+                SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+            ASSERT_EQ(SCF_RemovePolicyRule(ctx_, ruleId), SCF_SUCCESS);
+        }
+    });
+    while (readyCount.load() != 2) {
+        std::this_thread::yield();
+    }
+    start.store(true);
+    checker.join();
+    updater.join();
+    EXPECT_FALSE(hasUnexpectedResult.load());
+}
+} // namespace test

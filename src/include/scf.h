@@ -383,6 +383,20 @@ int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules, uint32_t 
 
 /**
  * @ingroup scf
+ * @brief 校验本端节点对目标节点资源的申请或释放权限。
+ * @param ctx [IN] 安全策略上下文。
+ * @param localCert [IN] 本端操作节点证书。
+ * @param targetNodeId [IN] 目标资源所属节点 ID。
+ * @param resourceType [IN] 单个资源类型，仅支持 FD、NUMA 或 ADDR。
+ * @param action [IN] 单个资源动作，仅支持申请或释放。
+ * @return SCF_SUCCESS、SCF_ERRNO_RBAC_DENIED 或错误码。
+ * @attention 本接口仅执行 RBAC 鉴权；localCert 的合法性和可信链校验由调用方保证。
+ */
+int32_t SCF_CheckResourcePermission(SCF_PolicyCtx *ctx, const void *localCert, const char *targetNodeId,
+    uint32_t resourceType, SCF_RESOURCE_ACTION action);
+
+/**
+ * @ingroup scf
  * @brief  配置安全通信使用的算法套
  * @param  ctx [IN] 安全策略上下文
  * @param  cipherSuites [IN] 算法套数组

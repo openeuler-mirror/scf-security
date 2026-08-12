@@ -112,6 +112,8 @@
         - [2.7.4 SCF_AddPolicyRule](#274-SCF_AddPolicyRule)
         - [2.7.5 SCF_RemovePolicyRule](#275-SCF_RemovePolicyRule)
         - [2.7.6 SCF_ListPolicyRules](#276-SCF_ListPolicyRules)
+    - [2.8 RBAC 资源权限校验](#28-rbac-资源权限校验)
+        - [2.8.1 SCF_CheckResourcePermission](#281-SCF_CheckResourcePermission)
 
 ## 1 数据结构
 
@@ -2664,3 +2666,43 @@ int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules,
 成功（包括因容量不足而截断）返回 `SCF_SUCCESS`；任一指针参数为空时返回
 `SCF_ERRNO_NULL_INPUT`；`ruleCap` 为 0 时返回 `SCF_ERRNO_INVALID_PARAM`；SCF 未初始化时返回
 `SCF_ERRNO_NOT_INIT`；复制规则时内存分配失败返回 `SCF_ERRNO_MEM_ALLOC`。
+
+### 2.8 RBAC 资源权限校验
+
+本节接口用于校验本端操作节点对目标节点资源的申请或释放权限。接口根据自定义策略规则和节点角色
+执行鉴权，不负责校验证书的合法性与可信链。
+
+#### 2.8.1 SCF_CheckResourcePermission
+
+##### 函数定义
+
+```c++
+int32_t SCF_CheckResourcePermission(SCF_PolicyCtx *ctx, const void *localCert,
+    const char *targetNodeId, uint32_t resourceType, SCF_RESOURCE_ACTION action);
+```
+
+校验本端操作节点对目标节点资源的申请或释放权限。接口先匹配自定义策略规则；规则未命中时，master
+默认允许任意节点资源操作，slave 默认仅允许本节点操作，未知角色拒绝访问。
+
+`resourceType` 只接受 `SCF_RES_TYPE_FD`、`SCF_RES_TYPE_NUMA` 或 `SCF_RES_TYPE_ADDR`，不支持
+`SCF_RES_TYPE_ALL` 或组合位图。`action` 只接受 `SCF_RES_ACTION_APPLY` 或
+`SCF_RES_ACTION_RELEASE`，不支持组合动作。
+
+本接口只执行 RBAC 鉴权，`localCert` 的合法性与可信链校验由调用方保证。自定义规则优先于默认规则；
+在匹配的自定义规则中，主体、目标、资源类型和动作越精确者优先，同一优先级下 `DENY` 优先于
+`ALLOW`。规则更新会立即影响后续调用，单次调用在一致的规则快照下完成裁决。
+
+| 参数名 | 参数类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| ctx | [IN] | 是 | 已创建且已启用 RBAC 的安全策略上下文。 |
+| localCert | [IN] | 是 | 本端操作节点证书，用于解析 NodeId 与角色。 |
+| targetNodeId | [IN] | 是 | 目标资源所属的非空节点 ID。 |
+| resourceType | [IN] | 是 | 单个资源类型。 |
+| action | [IN] | 是 | 单个资源动作。 |
+
+##### 返回值
+
+权限校验通过时返回 `SCF_SUCCESS`；当前策略上下文未启用 RBAC 时返回 `SCF_ERRNO_RBAC_DISABLED`；命中
+拒绝规则或 slave 请求跨节点资源时返回 `SCF_ERRNO_RBAC_DENIED`；无法解析本端节点角色时返回
+`SCF_ERRNO_RBAC_ROLE_UNKNOWN`；证书缺少 NodeId 扩展时返回 `SCF_ERRNO_CERT_NODE_ID_ABSENT`；证书扩展
+解析失败、输入参数非法或框架未初始化时返回相应错误码。

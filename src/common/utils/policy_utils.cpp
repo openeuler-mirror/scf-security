@@ -40,6 +40,8 @@ std::map<int32_t, std::string> errorMap = {
     {SCF_ERRNO_FILE_PATH_ERROR, "File path error"},
     {SCF_ERRNO_READ_FILE_ERROR, "Read file error"},
     // RBAC 模块
+    {SCF_ERRNO_RBAC_DISABLED, "RBAC is disabled"},
+    {SCF_ERRNO_RBAC_DENIED, "RBAC access is denied"},
     {SCF_ERRNO_RBAC_ROLE_UNKNOWN, "RBAC node role is unknown"},
     {SCF_ERRNO_RBAC_MAP_FULL, "RBAC node role mapping is full"},
     {SCF_ERRNO_RBAC_MAP_NOT_FOUND, "RBAC node role mapping is not found"},
