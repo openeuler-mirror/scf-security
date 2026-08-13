@@ -20,18 +20,25 @@
 
 namespace scf {
 /**
+ * @brief 描述一次自定义策略规则匹配所需的请求属性。
+ */
+struct PolicyMatchRequest {
+    const char *subjectNodeId;  // 发起操作的节点 ID
+    const char *targetNodeId;   // 目标资源所属节点 ID
+    uint32_t resourceType;      // 单个资源类型
+    SCF_RESOURCE_ACTION action; // 单个资源动作
+};
+
+/**
  * @brief 查找优先级最高的自定义策略规则。
  * @param rules [IN] 待匹配的自定义策略规则。
- * @param subjectNodeId [IN] 发起操作的节点 ID。
- * @param targetNodeId [IN] 目标资源所属节点 ID。
- * @param resourceType [IN] 单个资源类型。
- * @param action [IN] 单个资源动作。
+ * @param request [IN] 待鉴权的主体、目标、资源类型和动作。
  * @param effect [OUT] 命中规则的效果；未命中时保持不变。
  * @return 命中规则返回 true，否则返回 false。
  * @attention 调用方必须持有 rules 对应的策略规则锁。
  */
-bool MatchPolicyRule(const std::map<uint32_t, SCF_PolicyRule> &rules, const char *subjectNodeId,
-    const char *targetNodeId, uint32_t resourceType, SCF_RESOURCE_ACTION action, SCF_POLICY_EFFECT *effect);
+bool MatchPolicyRule(
+    const std::map<uint32_t, SCF_PolicyRule> &rules, const PolicyMatchRequest &request, SCF_POLICY_EFFECT *effect);
 } // namespace scf
 
 #endif // SCF_POLICY_MATCHER_H

@@ -2358,18 +2358,33 @@ openssl req -new -newkey rsa:3072 -sha256 -nodes \
     -addext "1.3.6.1.4.1.2011.999.2=ASN1:UTF8String:master"
 ```
 
-上述 `-nodes` 会生成未加密的私钥，应限制 `node.key` 的访问权限；如需口令保护私钥，去掉 `-nodes`。
-可使用 `openssl req -in node.csr -noout -text` 检查 CSR。签发证书时，CA 必须将这两个扩展从 CSR
-保留到最终证书中。如果必须使用十六进制，以下 OpenSSL 配置与上述明文配置等价；`DER:` 后面的字节
-就是扩展 `extnValue` 的内容：
+以下命令生成带口令私钥的 CSR、使用 CA 签发证书并查看结果。口令由 OpenSSL 交互式读取，不要在命令行中
+填写明文口令；签发前需确认 CSR 中的 NodeId、Role 与可信登记信息一致：
 
-```ini
-[ req ]
-req_extensions = rbac_extensions
-
-[ rbac_extensions ]
-1.3.6.1.4.1.2011.999.1 = DER:0C:09:6E:6F:64:65:2D:63:65:72:74
-1.3.6.1.4.1.2011.999.2 = DER:0C:06:6D:61:73:74:65:72
+```bash
+# 生成带口令的 CA 私钥和自签名 CA 证书
+openssl req -x509 -newkey rsa:3072 -sha256 -days 3650 \
+    -keyout ca.key -out ca.cert -subj "/CN=Test CA" \
+    -addext "basicConstraints=critical,CA:true" \
+    -addext "keyUsage=critical,keyCertSign,cRLSign"
+# 生成带口令的节点私钥和包含 NodeId、Role 的 CSR
+openssl req -new -newkey rsa:3072 -sha256 \
+    -keyout node-protected.key -out node-protected.csr -subj "/CN=node-cert" \
+    -addext "1.3.6.1.4.1.2011.999.1=ASN1:UTF8String:node-cert" \
+    -addext "1.3.6.1.4.1.2011.999.2=ASN1:UTF8String:master"
+# 验证并查看 CSR
+openssl req -in node-protected.csr -noout -verify -text
+# 生成受控的节点证书扩展文件
+printf '%s\n' 'basicConstraints=critical,CA:false' \
+    'keyUsage=critical,digitalSignature,keyEncipherment' \
+    'extendedKeyUsage=clientAuth,serverAuth' \
+    '1.3.6.1.4.1.2011.999.1=ASN1:UTF8String:node-cert' \
+    '1.3.6.1.4.1.2011.999.2=ASN1:UTF8String:master' > node.ext
+# 使用 CA 签发节点证书
+openssl x509 -req -in node-protected.csr -CA ca.cert -CAkey ca.key \
+    -CAcreateserial -days 365 -sha256 -extfile node.ext -out node.crt
+# 查看签发后的节点证书
+openssl x509 -in node.crt -noout -text
 ```
 
 #### 2.6.1 SCF_GetCertNodeId

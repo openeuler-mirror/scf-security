@@ -14,25 +14,25 @@
 #include "policy_matcher.h"
 
 namespace scf {
-static bool IsRuleMatched(const SCF_PolicyRule &rule, const char *subjectNodeId, const char *targetNodeId,
-    uint32_t resourceType, SCF_RESOURCE_ACTION action)
+static bool IsRuleMatched(const SCF_PolicyRule &rule, const PolicyMatchRequest &request)
 {
-    return rule.subjectNodeId == subjectNodeId && (rule.targetNodeId == targetNodeId || rule.targetNodeId == "*") &&
-           (rule.resourceTypeBitmap & resourceType) != 0 && (rule.actionBitmap & static_cast<uint32_t>(action)) != 0;
+    return rule.subjectNodeId == request.subjectNodeId &&
+           (rule.targetNodeId == request.targetNodeId || rule.targetNodeId == "*") &&
+           (rule.resourceTypeBitmap & request.resourceType) != 0 &&
+           (rule.actionBitmap & static_cast<uint32_t>(request.action)) != 0;
 }
 
-static uint32_t GetMatchPriority(
-    const SCF_PolicyRule &rule, const char *targetNodeId, uint32_t resourceType, SCF_RESOURCE_ACTION action)
+static uint32_t GetMatchPriority(const SCF_PolicyRule &rule, const PolicyMatchRequest &request)
 {
     // 匹配规则的优先级从 1 开始，精确匹配的字段越多，优先级越高。
     uint32_t priority = 1;
-    if (rule.targetNodeId == targetNodeId) {
+    if (rule.targetNodeId == request.targetNodeId) {
         ++priority;
     }
-    if (rule.resourceTypeBitmap == resourceType) {
+    if (rule.resourceTypeBitmap == request.resourceType) {
         ++priority;
     }
-    if (rule.actionBitmap == static_cast<uint32_t>(action)) {
+    if (rule.actionBitmap == static_cast<uint32_t>(request.action)) {
         ++priority;
     }
     return priority;
@@ -43,16 +43,16 @@ static bool ShouldReplaceMatch(uint32_t priority, SCF_POLICY_EFFECT effect, uint
     return priority > highestPriority || (priority == highestPriority && effect == SCF_POLICY_EFFECT_DENY);
 }
 
-bool MatchPolicyRule(const std::map<uint32_t, SCF_PolicyRule> &rules, const char *subjectNodeId,
-    const char *targetNodeId, uint32_t resourceType, SCF_RESOURCE_ACTION action, SCF_POLICY_EFFECT *effect)
+bool MatchPolicyRule(
+    const std::map<uint32_t, SCF_PolicyRule> &rules, const PolicyMatchRequest &request, SCF_POLICY_EFFECT *effect)
 {
     uint32_t highestPriority = 0;
     for (const auto &item : rules) {
         const auto &rule = item.second;
-        if (!IsRuleMatched(rule, subjectNodeId, targetNodeId, resourceType, action)) {
+        if (!IsRuleMatched(rule, request)) {
             continue;
         }
-        uint32_t priority = GetMatchPriority(rule, targetNodeId, resourceType, action);
+        uint32_t priority = GetMatchPriority(rule, request);
         if (!ShouldReplaceMatch(priority, rule.effect, highestPriority)) {
             continue;
         }

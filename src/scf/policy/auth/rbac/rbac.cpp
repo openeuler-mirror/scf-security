@@ -453,12 +453,11 @@ static int32_t ResolveLocalIdentity(
     return ret;
 }
 
-static bool GetCustomPolicyEffect(SCF_PolicyCtx *ctx, const char *localNodeId, const char *targetNodeId,
-    uint32_t resourceType, SCF_RESOURCE_ACTION action, SCF_POLICY_EFFECT *effect)
+static bool GetCustomPolicyEffect(SCF_PolicyCtx *ctx, const PolicyMatchRequest &request, SCF_POLICY_EFFECT *effect)
 {
     // 规则匹配和规则更新使用同一把锁，确保单次鉴权读取一致的规则状态。
     std::lock_guard<std::mutex> lock(ctx->policyRuleMutex);
-    return MatchPolicyRule(ctx->policyRuleMap, localNodeId, targetNodeId, resourceType, action, effect);
+    return MatchPolicyRule(ctx->policyRuleMap, request, effect);
 }
 
 static int32_t CheckDefaultResourcePermission(SCF_RBAC_ROLE role, const char *localNodeId, const char *targetNodeId)
@@ -504,7 +503,8 @@ int32_t SCF_CheckResourcePermission(SCF_PolicyCtx *ctx, const void *localCert, c
     }
 
     SCF_POLICY_EFFECT effect = SCF_POLICY_EFFECT_DENY;
-    if (GetCustomPolicyEffect(ctx, localNodeId, targetNodeId, resourceType, action, &effect)) {
+    PolicyMatchRequest request = {localNodeId, targetNodeId, resourceType, action};
+    if (GetCustomPolicyEffect(ctx, request, &effect)) {
         if (effect == SCF_POLICY_EFFECT_ALLOW) {
             CCSEC_LOG_DEBUG("|SCF_CheckResourcePermission|END|returnS||custom policy rule allows access");
             return SCF_SUCCESS;
