@@ -313,6 +313,90 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
 
 /**
  * @ingroup scf
+ * @brief 启用或关闭 RBAC 鉴权。
+ * @param ctx [IN] 安全策略上下文。
+ * @param enable [IN] true 启用，false 关闭。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_EnableRbac(SCF_PolicyCtx *ctx, bool enable);
+
+/**
+ * @ingroup scf
+ * @brief 获取映射表中所有 master 节点的快照。
+ * @param ctx [IN] 安全策略上下文。
+ * @param nodeIdList [OUT] master 节点 ID 数组。
+ * @param listCap [IN] 输出数组容量。
+ * @param actualCount [OUT] 实际写入的节点数量。
+ * @return SCF_SUCCESS 或错误码。
+ */
+int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LEN], uint32_t listCap,
+    uint32_t *actualCount);
+
+/**
+ * @ingroup scf
+ * @brief 查询映射表中的节点是否为 master。
+ * @param ctx [IN] 安全策略上下文。
+ * @param nodeId [IN] 待查询节点 ID。
+ * @param isMaster [OUT] 是否为 master；映射不存在时写入 false。
+ * @return SCF_SUCCESS、SCF_ERRNO_RBAC_MAP_NOT_FOUND 或错误码。
+ */
+int32_t SCF_IsMasterNode(SCF_PolicyCtx *ctx, const char *nodeId, bool *isMaster);
+
+/**
+ * @ingroup scf
+ * @brief 添加自定义 RBAC 策略规则。
+ * @param ctx [IN] 非空安全策略上下文。
+ * @param subjectNodeId [IN] 主体节点 ID，长度为 1～127 字节，不允许使用通配符 "*"。
+ * @param targetNodeId [IN] 目标节点 ID，长度为 1～127 字节；可使用通配符 "*"。
+ * @param resourceTypeBitmap [IN] 非零资源类型位图，仅允许 SCF_RES_TYPE_FD、SCF_RES_TYPE_NUMA 和
+ * SCF_RES_TYPE_ADDR 的组合。
+ * @param actionBitmap [IN] 非零操作位图，仅允许 SCF_RES_ACTION_APPLY 和 SCF_RES_ACTION_RELEASE 的组合。
+ * @param effect [IN] 规则效果，仅允许 SCF_POLICY_EFFECT_ALLOW 或 SCF_POLICY_EFFECT_DENY。
+ * @param ruleId [OUT] 新规则 ID；仅在返回 SCF_SUCCESS 时写入。
+ * @return SCF_SUCCESS 或错误码。
+ * @attention 同一主体、目标、资源类型和动作只能配置一个 effect，重复或冲突均返回
+ * SCF_ERRNO_RBAC_POLICY_DUPLICATE。
+ */
+int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const char *targetNodeId,
+    uint32_t resourceTypeBitmap, uint32_t actionBitmap, SCF_POLICY_EFFECT effect, uint32_t *ruleId);
+
+/**
+ * @ingroup scf
+ * @brief 删除指定规则 ID 的自定义 RBAC 策略规则。
+ * @param ctx [IN] 非空安全策略上下文。
+ * @param ruleId [IN] 待删除的规则 ID，必须大于 0。
+ * @return SCF_SUCCESS、SCF_ERRNO_NULL_INPUT、SCF_ERRNO_INVALID_PARAM、SCF_ERRNO_RBAC_POLICY_NOT_FOUND 或错误码。
+ */
+int32_t SCF_RemovePolicyRule(SCF_PolicyCtx *ctx, uint32_t ruleId);
+
+/**
+ * @ingroup scf
+ * @brief 获取自定义 RBAC 策略规则快照。
+ * @param ctx [IN] 非空安全策略上下文。
+ * @param rules [OUT] 可写数组，至少包含 ruleCap 个已构造的 SCF_PolicyRule 对象。
+ * @param ruleCap [IN] rules 的元素容量，必须大于 0。
+ * @param actualCount [OUT] 已完整写入的规则数，内存分配失败时保留已完成数量。
+ * @return SCF_SUCCESS、SCF_ERRNO_MEM_ALLOC 或错误码。
+ */
+int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules, uint32_t ruleCap,
+    uint32_t *actualCount);
+
+/**
+ * @ingroup scf
+ * @brief 校验本端节点对目标节点资源的申请或释放权限。
+ * @param ctx [IN] 安全策略上下文。
+ * @param localCert [IN] 本端操作节点证书。
+ * @param targetNodeId [IN] 目标资源所属节点 ID。
+ * @param resourceType [IN] 单个资源类型，仅支持 FD、NUMA 或 ADDR。
+ * @param action [IN] 单个资源动作，仅支持申请或释放。
+ * @return SCF_SUCCESS、SCF_ERRNO_RBAC_DENIED 或错误码。
+ * @attention 本接口仅执行 RBAC 鉴权；localCert 的合法性和可信链校验由调用方保证。
+ */
+int32_t SCF_CheckResourcePermission(SCF_PolicyCtx *ctx, const void *localCert, const char *targetNodeId,
+    uint32_t resourceType, SCF_RESOURCE_ACTION action);
+
+/**
+ * @ingroup scf
  * @brief  配置安全通信使用的算法套
  * @param  ctx [IN] 安全策略上下文
  * @param  cipherSuites [IN] 算法套数组

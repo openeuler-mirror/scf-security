@@ -15,6 +15,7 @@
 #define SCF_INNER_H
 
 #include <atomic>
+#include <map>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -51,6 +52,10 @@ namespace scf {
         std::mutex nodeRoleMapMutex;
         std::unordered_map<std::string, SCF_RBAC_ROLE> nodeRoleMap;
         std::atomic_bool nodeRoleMapFrozen;
+        std::atomic_bool rbacEnabled;
+        std::mutex policyRuleMutex;
+        std::map<uint32_t, SCF_PolicyRule> policyRuleMap;
+        uint32_t nextPolicyRuleId;
     };
 
     struct SCF_KEY_UPDATE_INFO {

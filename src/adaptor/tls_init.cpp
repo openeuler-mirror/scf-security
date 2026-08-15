@@ -20,7 +20,7 @@ namespace scf {
 
 static bool g_isTlsInit = false;
 AbstractTLSAdaptor *g_adaptor = nullptr;
-static OpenSSLAdapter g_opensslAdaptor;
+static OpenSSLAdaptor g_opensslAdaptor;
 
 static int32_t RegisterTlsAdaptor(const uint64_t &flag, const void *settings)
 {

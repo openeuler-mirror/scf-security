@@ -75,6 +75,9 @@ find %{buildroot} -name "*.so.*" -exec chmod u+s {} \;
 %attr(440, root, root) %{_includedir}/scf_def.h
 %attr(440, root, root) %{_includedir}/scf_errno.h
 %attr(440, root, root) %{_includedir}/scf_ssl.h
+%attr(440, root, root) %{_includedir}/scf_connection.h
+%attr(440, root, root) %{_includedir}/scf_crypto_engine.h
+%attr(440, root, root) %{_includedir}/scf_transport.h
 %attr(550, root, root) %{_libdir}/libscf.so
 
 %files devel
@@ -82,6 +85,9 @@ find %{buildroot} -name "*.so.*" -exec chmod u+s {} \;
 %attr(440, root, root) %{_includedir}/scf_def.h
 %attr(440, root, root) %{_includedir}/scf_errno.h
 %attr(440, root, root) %{_includedir}/scf_ssl.h
+%attr(440, root, root) %{_includedir}/scf_connection.h
+%attr(440, root, root) %{_includedir}/scf_crypto_engine.h
+%attr(440, root, root) %{_includedir}/scf_transport.h
 
 %post
 

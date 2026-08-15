@@ -50,7 +50,7 @@ protected:
         return SCF_GetCurrentCert(obj_);
     }
 
-    OpenSSLAdapter adapter_;
+    OpenSSLAdaptor adapter_;
     SCF_PolicyCtx *ctx_ = nullptr;
     SCF_PolicyObj *obj_ = nullptr;
 };

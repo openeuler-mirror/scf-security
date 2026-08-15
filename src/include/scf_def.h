@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #ifdef __cplusplus
@@ -172,6 +173,28 @@ typedef enum SCFRbacRoleSource {
     SCF_RBAC_ROLE_SRC_CERT = 1,    // 角色来自证书扩展
     SCF_RBAC_ROLE_SRC_MAPPING = 2, // 角色来自节点角色映射
 } SCF_RBAC_ROLE_SOURCE;
+
+typedef enum SCFResourceType {
+    SCF_RES_TYPE_NONE = 0, // 无资源类型
+    SCF_RES_TYPE_FD = 1,   // 文件描述符资源
+    SCF_RES_TYPE_NUMA = 2, // NUMA 资源
+    SCF_RES_TYPE_ADDR = 4, // 地址空间资源
+    SCF_RES_TYPE_ALL = 7,  // 所有资源类型
+} SCF_RESOURCE_TYPE;
+
+typedef enum SCFPolicyEffect {
+    SCF_POLICY_EFFECT_ALLOW = 0, // 允许访问
+    SCF_POLICY_EFFECT_DENY = 1,  // 拒绝访问
+} SCF_POLICY_EFFECT;
+
+struct SCF_PolicyRule {
+    uint32_t ruleId;              // 规则唯一标识
+    std::string subjectNodeId;    // 发起操作的节点 ID
+    std::string targetNodeId;     // 被操作的节点 ID 或通配符
+    uint32_t resourceTypeBitmap;  // 资源类型位图
+    uint32_t actionBitmap;        // 操作动作位图
+    SCF_POLICY_EFFECT effect;     // 规则效果
+};
 
 // 结构体定义
 typedef struct SCFFileCtx SCF_FILE_CTX;
