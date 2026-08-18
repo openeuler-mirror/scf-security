@@ -31,6 +31,9 @@ static bool IsValidNodeId(const char *nodeId)
     if (nodeId == nullptr) {
         return false;
     }
+    if (strcmp(nodeId, "*") == 0) {
+        return false;
+    }
     size_t length = strnlen(nodeId, MAX_NODE_ID_LEN);
     return length > 0 && length < MAX_NODE_ID_LEN;
 }
@@ -133,7 +136,7 @@ int32_t SCF_GetCertNodeId(const void *cert, char *nodeIdBuffer, size_t bufferLen
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||read node id extension failed, ret:" << ret);
         return ret;
     }
-    if (nodeId.empty() || nodeId.size() >= MAX_NODE_ID_LEN || nodeId.find('\0') != std::string::npos) {
+    if (nodeId.find('\0') != std::string::npos || !IsValidNodeId(nodeId.c_str())) {
         CCSEC_LOG_ERROR("|SCF_GetCertNodeId|END|returnF||node id extension is invalid");
         return SCF_SSL_ERR_PARSE_CERT;
     }
@@ -360,7 +363,7 @@ int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const c
         CCSEC_LOG_ERROR("|SCF_AddPolicyRule|END|returnF||null input");
         return SCF_ERRNO_NULL_INPUT;
     }
-    if (!IsValidNodeId(subjectNodeId) || std::strcmp(subjectNodeId, "*") == 0 || !IsValidNodeId(targetNodeId) ||
+    if (!IsValidNodeId(subjectNodeId) || !(IsValidNodeId(targetNodeId) || strcmp(targetNodeId, "*") == 0) ||
         !IsValidBitmap(resourceTypeBitmap, SCF_RES_TYPE_ALL) ||
         !IsValidBitmap(actionBitmap, SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE) || !IsValidPolicyEffect(effect)) {
         CCSEC_LOG_ERROR("|SCF_AddPolicyRule|END|returnF||invalid policy rule");
