@@ -82,6 +82,31 @@ private:
     }
 };
 
+class CertificateIdentityAdaptorStub final : public OpenSSLAdaptor {
+public:
+    explicit CertificateIdentityAdaptorStub(const std::string &nodeId) : nodeId_(nodeId) {}
+
+    int32_t GetCertExtensionByOid(const void *cert, const char *oid, std::string &value) override
+    {
+        if (cert == nullptr || oid == nullptr) {
+            return SCF_ERRNO_NULL_INPUT;
+        }
+        if (std::strcmp(oid, SCF_OID_NODE_ID) == 0) {
+            value = nodeId_;
+            return SCF_SUCCESS;
+        }
+        if (std::strcmp(oid, SCF_OID_RBAC_ROLE) == 0) {
+            value.clear();
+            return SCF_SSL_ERR_CERT_EXT_ABSENT;
+        }
+        value.clear();
+        return SCF_SSL_ERR_CERT_EXT_ABSENT;
+    }
+
+private:
+    std::string nodeId_;
+};
+
 class ScopedAdaptorOverride {
 public:
     explicit ScopedAdaptorOverride(AbstractTLSAdaptor *replacement) : previous_(g_adaptor)
@@ -230,6 +255,229 @@ protected:
     SCF_PolicyCtx *ctx_ = nullptr;
     SCF_PolicyObj *obj_ = nullptr;
 };
+
+struct PolicyRuleBoundaryParam {
+    uint32_t resourceTypeBitmap;
+    uint32_t actionBitmap;
+    SCF_POLICY_EFFECT effect;
+    bool wildcardTarget;
+};
+
+class TestRbacPolicyRuleBoundary : public TestRbac,
+                                   public ::testing::WithParamInterface<PolicyRuleBoundaryParam> {};
+
+struct PermissionBoundaryParam {
+    uint32_t resourceType;
+    SCF_RESOURCE_ACTION action;
+    std::string targetNodeId;
+    int32_t expected;
+};
+
+class TestRbacPermissionBoundary : public TestRbac,
+                                   public ::testing::WithParamInterface<PermissionBoundaryParam> {};
+
+struct NodeIdApiBoundaryParam {
+    std::string nodeId;
+    bool validForMapping;
+    bool validAsPolicySubject;
+    bool validAsPolicyTarget;
+};
+
+class TestRbacNodeIdApiBoundary : public TestRbac,
+                                 public ::testing::WithParamInterface<NodeIdApiBoundaryParam> {};
+
+struct PolicyCacheCaseParam {
+    std::string subjectNodeId;
+    std::string targetNodeId;
+    uint32_t resourceTypeBitmap;
+    uint32_t actionBitmap;
+    SCF_POLICY_EFFECT effect;
+    int32_t expected;
+};
+
+class TestRbacPolicyCacheCases : public TestRbac,
+                                 public ::testing::WithParamInterface<PolicyCacheCaseParam> {};
+
+struct SubjectIdentityChainParam {
+    std::string nodeId;
+    SCF_RBAC_ROLE role;
+};
+
+class TestRbacSubjectIdentityChain : public TestRbac,
+                                     public ::testing::WithParamInterface<SubjectIdentityChainParam> {};
+
+struct SubjectPermissionCombinationParam {
+    std::string subjectNodeId;
+    SCF_RBAC_ROLE role;
+    std::string targetNodeId;
+    uint32_t resourceType;
+    SCF_RESOURCE_ACTION action;
+    SCF_POLICY_EFFECT effect;
+};
+
+class TestRbacSubjectPermissionCombinations : public TestRbac,
+                                              public ::testing::WithParamInterface<SubjectPermissionCombinationParam> {};
+
+static std::vector<PolicyRuleBoundaryParam> MakePolicyRuleBoundaryParams()
+{
+    std::vector<PolicyRuleBoundaryParam> params;
+    constexpr uint32_t resourceMasks[] = {
+        SCF_RES_TYPE_FD,
+        SCF_RES_TYPE_NUMA,
+        SCF_RES_TYPE_ADDR,
+        SCF_RES_TYPE_FD | SCF_RES_TYPE_NUMA,
+        SCF_RES_TYPE_FD | SCF_RES_TYPE_ADDR,
+        SCF_RES_TYPE_NUMA | SCF_RES_TYPE_ADDR,
+        SCF_RES_TYPE_ALL,
+    };
+    constexpr uint32_t actionMasks[] = {
+        SCF_RES_ACTION_APPLY,
+        SCF_RES_ACTION_RELEASE,
+        SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE,
+    };
+    constexpr SCF_POLICY_EFFECT effects[] = {SCF_POLICY_EFFECT_ALLOW, SCF_POLICY_EFFECT_DENY};
+    for (uint32_t resourceMask : resourceMasks) {
+        for (uint32_t actionMask : actionMasks) {
+            for (SCF_POLICY_EFFECT effect : effects) {
+                params.push_back({resourceMask, actionMask, effect, false});
+                params.push_back({resourceMask, actionMask, effect, true});
+            }
+        }
+    }
+    return params;
+}
+
+static std::vector<PermissionBoundaryParam> MakePermissionBoundaryParams()
+{
+    std::vector<PermissionBoundaryParam> params;
+    constexpr uint32_t validResourceTypes[] = {SCF_RES_TYPE_FD, SCF_RES_TYPE_NUMA, SCF_RES_TYPE_ADDR};
+    constexpr SCF_RESOURCE_ACTION validActions[] = {SCF_RES_ACTION_APPLY, SCF_RES_ACTION_RELEASE};
+    for (uint32_t resourceType : validResourceTypes) {
+        for (SCF_RESOURCE_ACTION action : validActions) {
+            params.push_back({resourceType, action, "a", SCF_SUCCESS});
+            params.push_back({resourceType, action, "*", SCF_ERRNO_INVALID_PARAM});
+            params.push_back({resourceType, action, std::string(MAX_NODE_ID_LEN - 1, 'x'), SCF_SUCCESS});
+        }
+    }
+    constexpr uint32_t invalidResourceTypes[] = {0, 3, 5, 6, 7, 8, std::numeric_limits<uint32_t>::max()};
+    for (uint32_t resourceType : invalidResourceTypes) {
+        params.push_back({resourceType, SCF_RES_ACTION_APPLY, "target", SCF_ERRNO_INVALID_PARAM});
+    }
+    constexpr SCF_RESOURCE_ACTION invalidActions[] = {
+        SCF_RES_ACTION_UNKNOWN,
+        static_cast<SCF_RESOURCE_ACTION>(SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE),
+        static_cast<SCF_RESOURCE_ACTION>(4),
+        static_cast<SCF_RESOURCE_ACTION>(std::numeric_limits<uint32_t>::max()),
+    };
+    for (SCF_RESOURCE_ACTION action : invalidActions) {
+        params.push_back({SCF_RES_TYPE_FD, action, "target", SCF_ERRNO_INVALID_PARAM});
+    }
+    params.push_back({SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY, "", SCF_ERRNO_INVALID_PARAM});
+    params.push_back(
+        {SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY, std::string(MAX_NODE_ID_LEN, 'x'), SCF_ERRNO_INVALID_PARAM});
+    return params;
+}
+
+static std::vector<PolicyCacheCaseParam> MakeOneThousandPolicyCacheParams()
+{
+    std::vector<PolicyCacheCaseParam> params;
+    params.reserve(1000);
+    constexpr uint32_t resourceMasks[] = {
+        SCF_RES_TYPE_FD,
+        SCF_RES_TYPE_NUMA,
+        SCF_RES_TYPE_ADDR,
+        SCF_RES_TYPE_ALL,
+    };
+    constexpr uint32_t actionMasks[] = {
+        SCF_RES_ACTION_APPLY,
+        SCF_RES_ACTION_RELEASE,
+        SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE,
+    };
+    for (uint32_t i = 0; i < 1000; ++i) {
+        size_t subjectLength = static_cast<size_t>(i % (MAX_NODE_ID_LEN - 1)) + 1;
+        size_t targetLength = static_cast<size_t>((i * 7) % (MAX_NODE_ID_LEN - 1)) + 1;
+        bool valid = true;
+        switch (i % 25) {
+            case 0:
+                subjectLength = 0;
+                valid = false;
+                break;
+            case 1:
+                subjectLength = MAX_NODE_ID_LEN - 1;
+                break;
+            case 2:
+                subjectLength = (MAX_NODE_ID_LEN - 1) + 1;
+                valid = false;
+                break;
+            case 3:
+                subjectLength = MAX_NODE_ID_LEN + 1;
+                valid = false;
+                break;
+            case 4:
+                targetLength = 0;
+                valid = false;
+                break;
+            case 5:
+                targetLength = MAX_NODE_ID_LEN - 1;
+                break;
+            case 6:
+                targetLength = (MAX_NODE_ID_LEN - 1) + 1;
+                valid = false;
+                break;
+            case 7:
+                targetLength = MAX_NODE_ID_LEN + 1;
+                valid = false;
+                break;
+            default:
+                break;
+        }
+        params.push_back({
+            std::string(subjectLength, static_cast<char>('a' + (i % 26))),
+            i % 10 == 0 && valid ? "*" : std::string(targetLength, static_cast<char>('A' + (i % 26))),
+            resourceMasks[i % 4],
+            actionMasks[i % 3],
+            i % 2 == 0 ? SCF_POLICY_EFFECT_ALLOW : SCF_POLICY_EFFECT_DENY,
+            valid ? SCF_SUCCESS : static_cast<int32_t>(SCF_ERRNO_RBAC_POLICY_INVALID),
+        });
+    }
+    return params;
+}
+
+static std::vector<SubjectPermissionCombinationParam> MakeSubjectPermissionCombinationParams()
+{
+    std::vector<SubjectPermissionCombinationParam> params;
+    const std::string subjects[] = {"a", "*"};
+    constexpr SCF_RBAC_ROLE roles[] = {SCF_RBAC_ROLE_MASTER, SCF_RBAC_ROLE_SLAVE};
+    const std::string targets[] = {
+        "a", "*", std::string(MAX_NODE_ID_LEN - 1, 't'), "", std::string(MAX_NODE_ID_LEN, 'u'),
+        std::string(MAX_NODE_ID_LEN + 1, 'v')};
+    constexpr uint32_t resourceTypes[] = {
+        SCF_RES_TYPE_FD, SCF_RES_TYPE_NUMA, SCF_RES_TYPE_ADDR, SCF_RES_TYPE_FD | SCF_RES_TYPE_NUMA,
+        SCF_RES_TYPE_ALL, SCF_RES_TYPE_NONE, 8};
+    constexpr SCF_RESOURCE_ACTION actions[] = {
+        SCF_RES_ACTION_APPLY, SCF_RES_ACTION_RELEASE,
+        static_cast<SCF_RESOURCE_ACTION>(SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE), SCF_RES_ACTION_UNKNOWN,
+        static_cast<SCF_RESOURCE_ACTION>(4),
+        static_cast<SCF_RESOURCE_ACTION>(std::numeric_limits<uint32_t>::max())};
+    constexpr SCF_POLICY_EFFECT effects[] = {
+        SCF_POLICY_EFFECT_ALLOW, SCF_POLICY_EFFECT_DENY, static_cast<SCF_POLICY_EFFECT>(2),
+        static_cast<SCF_POLICY_EFFECT>(std::numeric_limits<uint32_t>::max())};
+    params.reserve(4032);
+    for (const auto &subject : subjects) {
+        for (SCF_RBAC_ROLE role : roles) {
+            for (const auto &target : targets) {
+                for (uint32_t resourceType : resourceTypes) {
+                    for (SCF_RESOURCE_ACTION action : actions) {
+                        for (SCF_POLICY_EFFECT effect : effects) {
+                            params.push_back({subject, role, target, resourceType, action, effect});
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return params;
+}
 
 TEST_F(TestRbac, NodeRoleMappingLifecycle)
 {
@@ -1073,4 +1321,428 @@ TEST_F(TestRbac, ResourcePermissionSupportsConcurrentRuleUpdates)
     EXPECT_TRUE(state.observedAllow.load());
     EXPECT_TRUE(state.observedDeny.load());
 }
+
+TEST_P(TestRbacPolicyRuleBoundary, AcceptsEveryDocumentedBitmapEffectAndTargetCombination)
+{
+    const PolicyRuleBoundaryParam &param = GetParam();
+    const char *targetNodeId = param.wildcardTarget ? "*" : "target";
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "subject", targetNodeId, param.resourceTypeBitmap, param.actionBitmap,
+        param.effect, &ruleId), SCF_SUCCESS);
+    EXPECT_NE(ruleId, 0U);
+
+    SCF_PolicyRule cachedRule[1];
+    uint32_t actualCount = 0;
+    ASSERT_EQ(SCF_ListPolicyRules(ctx_, cachedRule, 1, &actualCount), SCF_SUCCESS);
+    ASSERT_EQ(actualCount, 1U);
+    EXPECT_EQ(cachedRule[0].subjectNodeId, "subject");
+    EXPECT_EQ(cachedRule[0].targetNodeId, targetNodeId);
+    EXPECT_EQ(cachedRule[0].resourceTypeBitmap, param.resourceTypeBitmap);
+    EXPECT_EQ(cachedRule[0].actionBitmap, param.actionBitmap);
+    EXPECT_EQ(cachedRule[0].effect, param.effect);
+}
+
+INSTANTIATE_TEST_SUITE_P(AllPolicyRuleBoundaries, TestRbacPolicyRuleBoundary,
+    ::testing::ValuesIn(MakePolicyRuleBoundaryParams()));
+
+TEST_P(TestRbacPermissionBoundary, ValidatesOnlyPublicInputContractBeforeDecision)
+{
+    void *masterCert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(masterCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    const PermissionBoundaryParam &param = GetParam();
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, masterCert, param.targetNodeId.c_str(), param.resourceType,
+        param.action), param.expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(AllPermissionBoundaries, TestRbacPermissionBoundary,
+    ::testing::ValuesIn(MakePermissionBoundaryParams()));
+
+TEST_P(TestRbacNodeIdApiBoundary, AppliesWildcardAndLengthRulesConsistentlyAcrossPublicApis)
+{
+    const NodeIdApiBoundaryParam &param = GetParam();
+    const char *nodeId = param.nodeId.c_str();
+    const int32_t mappingExpected = param.validForMapping ? SCF_SUCCESS : SCF_ERRNO_INVALID_PARAM;
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, nodeId, SCF_RBAC_ROLE_MASTER), mappingExpected);
+    if (param.validForMapping) {
+        SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+        SCF_RBAC_ROLE_SOURCE source = SCF_RBAC_ROLE_SRC_NONE;
+        EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, nodeId, &role, &source), SCF_SUCCESS);
+        EXPECT_EQ(role, SCF_RBAC_ROLE_MASTER);
+        EXPECT_EQ(source, SCF_RBAC_ROLE_SRC_MAPPING);
+        bool isMaster = false;
+        EXPECT_EQ(SCF_IsMasterNode(ctx_, nodeId, &isMaster), SCF_SUCCESS);
+        EXPECT_TRUE(isMaster);
+    } else {
+        SCF_RBAC_ROLE role = SCF_RBAC_ROLE_UNKNOWN;
+        SCF_RBAC_ROLE_SOURCE source = SCF_RBAC_ROLE_SRC_NONE;
+        bool isMaster = false;
+        EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, nullptr, nodeId, &role, &source), SCF_ERRNO_INVALID_PARAM);
+        EXPECT_EQ(SCF_IsMasterNode(ctx_, nodeId, &isMaster), SCF_ERRNO_INVALID_PARAM);
+        EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, nodeId), SCF_ERRNO_INVALID_PARAM);
+    }
+
+    uint32_t subjectRuleId = 0;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, nodeId, "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &subjectRuleId),
+        param.validAsPolicySubject ? SCF_SUCCESS : SCF_ERRNO_RBAC_POLICY_INVALID);
+
+    uint32_t targetRuleId = 0;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, "subject", nodeId, SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &targetRuleId),
+        param.validAsPolicyTarget ? SCF_SUCCESS : SCF_ERRNO_RBAC_POLICY_INVALID);
+
+    void *masterCert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(masterCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, masterCert, nodeId, SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        param.validForMapping ? SCF_SUCCESS : SCF_ERRNO_INVALID_PARAM);
+
+    if (param.validForMapping) {
+        EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, nodeId), SCF_SUCCESS);
+        EXPECT_EQ(SCF_RemoveNodeRoleMapping(ctx_, nodeId), SCF_ERRNO_RBAC_MAP_NOT_FOUND);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(ExternalHeaderNodeIds, TestRbacNodeIdApiBoundary,
+    ::testing::Values(
+        NodeIdApiBoundaryParam{"", false, false, false},
+        NodeIdApiBoundaryParam{"*", false, false, true},
+        NodeIdApiBoundaryParam{"a", true, true, true},
+        NodeIdApiBoundaryParam{std::string(MAX_NODE_ID_LEN - 1, 'm'), true, true, true},
+        NodeIdApiBoundaryParam{std::string(MAX_NODE_ID_LEN, 'n'), false, false, false},
+        NodeIdApiBoundaryParam{std::string(MAX_NODE_ID_LEN + 1, 'o'), false, false, false}));
+
+TEST_F(TestRbac, CertificateNodeIdOutputBufferCoversZeroExactMaxAndMaxPlusOne)
+{
+    void *cert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    char nodeIdBuffer[MAX_NODE_ID_LEN + 1] = {0};
+    size_t nodeIdLen = 0;
+
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeIdBuffer, 0, &nodeIdLen), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeIdBuffer, 1, &nodeIdLen), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeIdBuffer, 9, &nodeIdLen), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeIdBuffer, 10, &nodeIdLen), SCF_SUCCESS);
+    EXPECT_EQ(nodeIdLen, 9U);
+    EXPECT_STREQ(nodeIdBuffer, "node-cert");
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeIdBuffer, MAX_NODE_ID_LEN - 1, &nodeIdLen), SCF_SUCCESS);
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeIdBuffer, MAX_NODE_ID_LEN, &nodeIdLen), SCF_SUCCESS);
+    EXPECT_EQ(SCF_GetCertNodeId(cert, nodeIdBuffer, MAX_NODE_ID_LEN + 1, &nodeIdLen), SCF_SUCCESS);
+}
+
+TEST_F(TestRbac, ListApisCoverNullZeroOneExactAndOversizedCapacity)
+{
+    char masterNodes[2][MAX_NODE_ID_LEN] = {{0}};
+    SCF_PolicyRule rules[2];
+    uint32_t actualCount = 0;
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "master-a", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, "master-b", SCF_RBAC_ROLE_MASTER), SCF_SUCCESS);
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "subject-a", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "subject-b", "target", SCF_RES_TYPE_NUMA, SCF_RES_ACTION_RELEASE,
+        SCF_POLICY_EFFECT_DENY, &ruleId), SCF_SUCCESS);
+
+    EXPECT_EQ(SCF_ListMasterNodes(nullptr, masterNodes, 2, &actualCount), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, nullptr, 2, &actualCount), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, 2, nullptr), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, 0, &actualCount), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, 1, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 1U);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, 2, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 2U);
+    EXPECT_EQ(SCF_ListMasterNodes(ctx_, masterNodes, std::numeric_limits<uint32_t>::max(), &actualCount),
+        SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 2U);
+
+    EXPECT_EQ(SCF_ListPolicyRules(nullptr, rules, 2, &actualCount), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, nullptr, 2, &actualCount), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 2, nullptr), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 0, &actualCount), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 1, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 1U);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, 2, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 2U);
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, rules, std::numeric_limits<uint32_t>::max(), &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 2U);
+}
+
+TEST_F(TestRbac, RuleIdApisCoverZeroOneMaxAndMaxPlusOneWrap)
+{
+    uint32_t ruleId = 0;
+    EXPECT_EQ(SCF_RemovePolicyRule(nullptr, 1), SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, 0), SCF_ERRNO_INVALID_PARAM);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, 1), SCF_ERRNO_RBAC_POLICY_NOT_FOUND);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, std::numeric_limits<uint32_t>::max()), SCF_ERRNO_RBAC_POLICY_NOT_FOUND);
+
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "subject", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+    EXPECT_EQ(ruleId, 1U);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, ruleId), SCF_SUCCESS);
+
+    ctx_->nextPolicyRuleId = std::numeric_limits<uint32_t>::max();
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "subject-max", "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY,
+        SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+    EXPECT_EQ(ruleId, std::numeric_limits<uint32_t>::max());
+    EXPECT_EQ(ctx_->nextPolicyRuleId, 0U);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, ruleId), SCF_SUCCESS);
+}
+
+TEST_F(TestRbac, ResourcePermissionRejectsEachNullPointerBeforePolicyDecision)
+{
+    void *cert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(cert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(nullptr, cert, "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, nullptr, "target", SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_NULL_INPUT);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, nullptr, SCF_RES_TYPE_FD, SCF_RES_ACTION_APPLY),
+        SCF_ERRNO_NULL_INPUT);
+}
+
+TEST_F(TestRbac, CustomDecisionFallsBackOnlyWhenNoRuleMatches)
+{
+    void *slaveCert = LoadRbacCert("rbac_slave_cert.pem");
+    ASSERT_NE(slaveCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-slave-cert", "other-target", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, slaveCert, "unmatched-target", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), SCF_ERRNO_RBAC_DENIED);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, slaveCert, "other-target", SCF_RES_TYPE_NUMA,
+        SCF_RES_ACTION_APPLY), SCF_ERRNO_RBAC_DENIED);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, slaveCert, "other-target", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_RELEASE), SCF_ERRNO_RBAC_DENIED);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, slaveCert, "other-target", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), SCF_SUCCESS);
+}
+
+TEST_F(TestRbac, CustomDenyDecisionOverridesDefaultMasterAllow)
+{
+    void *masterCert = LoadRbacCert("rbac_cert.pem");
+    ASSERT_NE(masterCert, nullptr);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "node-cert", "*", SCF_RES_TYPE_ALL,
+        SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE, SCF_POLICY_EFFECT_DENY, &ruleId), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, masterCert, "external-target", SCF_RES_TYPE_ADDR,
+        SCF_RES_ACTION_RELEASE), SCF_ERRNO_RBAC_DENIED);
+}
+
+TEST_F(TestRbac, PolicyCacheSnapshotIsIndependentFromCallerMutation)
+{
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, "subject", "*", SCF_RES_TYPE_ALL,
+        SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE, SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_SUCCESS);
+    SCF_PolicyRule firstSnapshot[1];
+    uint32_t actualCount = 0;
+    ASSERT_EQ(SCF_ListPolicyRules(ctx_, firstSnapshot, 1, &actualCount), SCF_SUCCESS);
+    ASSERT_EQ(actualCount, 1U);
+    firstSnapshot[0].subjectNodeId = "mutated-subject";
+    firstSnapshot[0].targetNodeId = "mutated-target";
+    firstSnapshot[0].effect = SCF_POLICY_EFFECT_DENY;
+
+    SCF_PolicyRule secondSnapshot[1];
+    ASSERT_EQ(SCF_ListPolicyRules(ctx_, secondSnapshot, 1, &actualCount), SCF_SUCCESS);
+    ASSERT_EQ(actualCount, 1U);
+    EXPECT_EQ(secondSnapshot[0].ruleId, ruleId);
+    EXPECT_EQ(secondSnapshot[0].subjectNodeId, "subject");
+    EXPECT_EQ(secondSnapshot[0].targetNodeId, "*");
+    EXPECT_EQ(secondSnapshot[0].effect, SCF_POLICY_EFFECT_ALLOW);
+}
+
+TEST_P(TestRbacSubjectIdentityChain, ComparesAsteriskAndOrdinaryNodeAcrossTheCompletePermissionChain)
+{
+    const SubjectIdentityChainParam &param = GetParam();
+    CertificateIdentityAdaptorStub adaptor(param.nodeId);
+    ASSERT_NE(GetLibraryAdaptorSlot(), nullptr);
+    ScopedAdaptorOverride adaptorOverride(&adaptor);
+    int certificateToken = 0;
+    const void *cert = &certificateToken;
+
+    char parsedNodeId[MAX_NODE_ID_LEN] = {0};
+    size_t parsedNodeIdLen = 0;
+    if (param.nodeId == "*") {
+        EXPECT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen),
+            SCF_SSL_ERR_PARSE_CERT);
+        EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, param.nodeId.c_str(), param.role), SCF_ERRNO_INVALID_PARAM);
+        SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
+        SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
+        EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &resolvedRole, &roleSource), SCF_SSL_ERR_PARSE_CERT);
+        uint32_t ruleId = 0;
+        EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+        EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_DENY, &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+        ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY), SCF_SSL_ERR_PARSE_CERT);
+        return;
+    }
+    ASSERT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen), SCF_SUCCESS);
+    EXPECT_EQ(std::string(parsedNodeId, parsedNodeIdLen), param.nodeId);
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, param.nodeId.c_str(), param.role), SCF_SUCCESS);
+
+    SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &resolvedRole, &roleSource), SCF_SUCCESS);
+    EXPECT_EQ(resolvedRole, param.role);
+    EXPECT_EQ(roleSource, SCF_RBAC_ROLE_SRC_MAPPING);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, param.nodeId.c_str(), SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), SCF_SUCCESS);
+    const int32_t defaultCrossNodeDecision = param.role == SCF_RBAC_ROLE_MASTER ? SCF_SUCCESS : SCF_ERRNO_RBAC_DENIED;
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), defaultCrossNodeDecision);
+
+    uint32_t allowRuleId = 0;
+    const int32_t expectedRuleResult = param.nodeId == "*" ? SCF_ERRNO_RBAC_POLICY_INVALID : SCF_SUCCESS;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &allowRuleId), expectedRuleResult);
+    if (expectedRuleResult == SCF_SUCCESS) {
+        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY), SCF_SUCCESS);
+        ASSERT_EQ(SCF_RemovePolicyRule(ctx_, allowRuleId), SCF_SUCCESS);
+    } else {
+        EXPECT_EQ(allowRuleId, 0U);
+        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY), defaultCrossNodeDecision);
+    }
+
+    uint32_t denyRuleId = 0;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_DENY, &denyRuleId), expectedRuleResult);
+    if (expectedRuleResult == SCF_SUCCESS) {
+        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY), SCF_ERRNO_RBAC_DENIED);
+        EXPECT_EQ(SCF_RemovePolicyRule(ctx_, denyRuleId), SCF_SUCCESS);
+    } else {
+        EXPECT_EQ(denyRuleId, 0U);
+        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY), defaultCrossNodeDecision);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(AsteriskAndOrdinarySubjects, TestRbacSubjectIdentityChain,
+    ::testing::Values(
+        SubjectIdentityChainParam{"a", SCF_RBAC_ROLE_MASTER},
+        SubjectIdentityChainParam{"a", SCF_RBAC_ROLE_SLAVE},
+        SubjectIdentityChainParam{"*", SCF_RBAC_ROLE_MASTER},
+        SubjectIdentityChainParam{"*", SCF_RBAC_ROLE_SLAVE}));
+
+TEST_P(TestRbacSubjectPermissionCombinations, ComparesRuleValidationAndPermissionDecisionForEveryCombination)
+{
+    const SubjectPermissionCombinationParam &param = GetParam();
+    CertificateIdentityAdaptorStub adaptor(param.subjectNodeId);
+    ASSERT_NE(GetLibraryAdaptorSlot(), nullptr);
+    ScopedAdaptorOverride adaptorOverride(&adaptor);
+    int certificateToken = 0;
+    const void *cert = &certificateToken;
+
+    const bool validPolicyTarget = !param.targetNodeId.empty() && param.targetNodeId.size() < MAX_NODE_ID_LEN;
+    const bool validPermissionTarget = validPolicyTarget && param.targetNodeId != "*";
+    const bool validPermissionResource = param.resourceType == SCF_RES_TYPE_FD ||
+        param.resourceType == SCF_RES_TYPE_NUMA || param.resourceType == SCF_RES_TYPE_ADDR;
+    const bool validPermissionAction =
+        param.action == SCF_RES_ACTION_APPLY || param.action == SCF_RES_ACTION_RELEASE;
+    if (param.subjectNodeId == "*") {
+        char parsedNodeId[MAX_NODE_ID_LEN] = {0};
+        size_t parsedNodeIdLen = 0;
+        EXPECT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen),
+            SCF_SSL_ERR_PARSE_CERT);
+        EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, param.subjectNodeId.c_str(), param.role), SCF_ERRNO_INVALID_PARAM);
+        uint32_t ruleId = 0;
+        EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.subjectNodeId.c_str(), param.targetNodeId.c_str(),
+            param.resourceType, static_cast<uint32_t>(param.action), param.effect, &ruleId),
+            SCF_ERRNO_RBAC_POLICY_INVALID);
+        ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+        const int32_t permissionResult = SCF_CheckResourcePermission(ctx_, cert, param.targetNodeId.c_str(),
+            param.resourceType, param.action);
+        if (!validPermissionTarget || !validPermissionResource || !validPermissionAction) {
+            EXPECT_EQ(permissionResult, SCF_ERRNO_INVALID_PARAM);
+        } else {
+            EXPECT_EQ(permissionResult, SCF_SSL_ERR_PARSE_CERT);
+        }
+        return;
+    }
+
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, param.subjectNodeId.c_str(), param.role), SCF_SUCCESS);
+    SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &resolvedRole, &roleSource), SCF_SUCCESS);
+    ASSERT_EQ(resolvedRole, param.role);
+    ASSERT_EQ(roleSource, SCF_RBAC_ROLE_SRC_MAPPING);
+    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
+
+    const bool validRuleResource = param.resourceType != 0 && (param.resourceType & ~SCF_RES_TYPE_ALL) == 0;
+    const uint32_t actionBitmap = static_cast<uint32_t>(param.action);
+    const bool validRuleAction = actionBitmap != 0 &&
+        (actionBitmap & ~(SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE)) == 0;
+    const bool validEffect = param.effect == SCF_POLICY_EFFECT_ALLOW || param.effect == SCF_POLICY_EFFECT_DENY;
+    const bool validRule = validPolicyTarget && validRuleResource && validRuleAction && validEffect;
+
+    uint32_t ruleId = 0;
+    const int32_t addResult = SCF_AddPolicyRule(ctx_, param.subjectNodeId.c_str(), param.targetNodeId.c_str(),
+        param.resourceType, actionBitmap, param.effect, &ruleId);
+    EXPECT_EQ(addResult,
+        validRule ? SCF_SUCCESS : static_cast<int32_t>(SCF_ERRNO_RBAC_POLICY_INVALID));
+    EXPECT_EQ(ruleId != 0, validRule);
+
+    const int32_t permissionResult = SCF_CheckResourcePermission(ctx_, cert, param.targetNodeId.c_str(),
+        param.resourceType, param.action);
+    if (!validPermissionTarget || !validPermissionResource || !validPermissionAction) {
+        EXPECT_EQ(permissionResult, SCF_ERRNO_INVALID_PARAM);
+    } else if (validRule) {
+        EXPECT_EQ(permissionResult,
+            param.effect == SCF_POLICY_EFFECT_ALLOW ? SCF_SUCCESS : static_cast<int32_t>(SCF_ERRNO_RBAC_DENIED));
+    } else {
+        const bool defaultAllow = param.role == SCF_RBAC_ROLE_MASTER || param.targetNodeId == param.subjectNodeId;
+        EXPECT_EQ(permissionResult,
+            defaultAllow ? SCF_SUCCESS : static_cast<int32_t>(SCF_ERRNO_RBAC_DENIED));
+    }
+    if (validRule) {
+        EXPECT_EQ(SCF_RemovePolicyRule(ctx_, ruleId), SCF_SUCCESS);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(AsteriskOrdinaryAndAllOtherBoundaries, TestRbacSubjectPermissionCombinations,
+    ::testing::ValuesIn(MakeSubjectPermissionCombinationParams()));
+
+TEST_P(TestRbacPolicyCacheCases, StoresReadsAndRemovesOneIndependentBoundaryCase)
+{
+    const PolicyCacheCaseParam &param = GetParam();
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx_, param.subjectNodeId.c_str(), param.targetNodeId.c_str(),
+        param.resourceTypeBitmap, param.actionBitmap, param.effect, &ruleId), param.expected);
+    if (param.expected != SCF_SUCCESS) {
+        EXPECT_EQ(ruleId, 0U);
+        return;
+    }
+    EXPECT_NE(ruleId, 0U);
+
+    SCF_PolicyRule snapshot[1];
+    uint32_t actualCount = 0;
+    ASSERT_EQ(SCF_ListPolicyRules(ctx_, snapshot, 1, &actualCount), SCF_SUCCESS);
+    ASSERT_EQ(actualCount, 1U);
+    EXPECT_EQ(snapshot[0].ruleId, ruleId);
+    EXPECT_EQ(snapshot[0].subjectNodeId, param.subjectNodeId);
+    EXPECT_EQ(snapshot[0].targetNodeId, param.targetNodeId);
+    EXPECT_EQ(snapshot[0].resourceTypeBitmap, param.resourceTypeBitmap);
+    EXPECT_EQ(snapshot[0].actionBitmap, param.actionBitmap);
+    EXPECT_EQ(snapshot[0].effect, param.effect);
+
+    ASSERT_EQ(SCF_RemovePolicyRule(ctx_, ruleId), SCF_SUCCESS);
+    actualCount = 1;
+    EXPECT_EQ(SCF_ListPolicyRules(ctx_, snapshot, 1, &actualCount), SCF_SUCCESS);
+    EXPECT_EQ(actualCount, 0U);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx_, ruleId), SCF_ERRNO_RBAC_POLICY_NOT_FOUND);
+}
+
+INSTANTIATE_TEST_SUITE_P(OneThousandAdditionalPolicyCacheCases, TestRbacPolicyCacheCases,
+    ::testing::ValuesIn(MakeOneThousandPolicyCacheParams()));
 } // namespace test
