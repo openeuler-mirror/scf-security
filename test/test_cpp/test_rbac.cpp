@@ -1628,6 +1628,61 @@ TEST_F(TestRbac, PolicyCacheSnapshotIsIndependentFromCallerMutation)
     EXPECT_EQ(secondSnapshot[0].effect, SCF_POLICY_EFFECT_ALLOW);
 }
 
+static void VerifyWildcardSubjectIdentityChain(
+    SCF_PolicyCtx *ctx, const SubjectIdentityChainParam &param, const void *cert)
+{
+    char parsedNodeId[MAX_NODE_ID_LEN] = {0};
+    size_t parsedNodeIdLen = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen),
+        SCF_SSL_ERR_PARSE_CERT);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx, param.nodeId.c_str(), param.role), SCF_ERRNO_INVALID_PARAM);
+    SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
+    EXPECT_EQ(SCF_GetNodeRbacRole(ctx, cert, nullptr, &resolvedRole, &roleSource), SCF_SSL_ERR_PARSE_CERT);
+    for (SCF_POLICY_EFFECT effect : {SCF_POLICY_EFFECT_ALLOW, SCF_POLICY_EFFECT_DENY}) {
+        uint32_t ruleId = 0;
+        EXPECT_EQ(SCF_AddPolicyRule(ctx, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
+            SCF_RES_ACTION_APPLY, effect, &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
+    }
+    ASSERT_EQ(SCF_EnableRbac(ctx, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx, cert, "resource-node", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), SCF_SSL_ERR_PARSE_CERT);
+}
+
+static void VerifyPolicyEffectDecision(SCF_PolicyCtx *ctx, const void *cert,
+    const SubjectIdentityChainParam &param, SCF_POLICY_EFFECT effect, int32_t expectedDecision)
+{
+    uint32_t ruleId = 0;
+    ASSERT_EQ(SCF_AddPolicyRule(ctx, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY, effect, &ruleId), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx, cert, "resource-node", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), expectedDecision);
+    EXPECT_EQ(SCF_RemovePolicyRule(ctx, ruleId), SCF_SUCCESS);
+}
+
+static void VerifyOrdinarySubjectIdentityChain(
+    SCF_PolicyCtx *ctx, const SubjectIdentityChainParam &param, const void *cert)
+{
+    char parsedNodeId[MAX_NODE_ID_LEN] = {0};
+    size_t parsedNodeIdLen = 0;
+    ASSERT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen), SCF_SUCCESS);
+    EXPECT_EQ(std::string(parsedNodeId, parsedNodeIdLen), param.nodeId);
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx, param.nodeId.c_str(), param.role), SCF_SUCCESS);
+    SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_GetNodeRbacRole(ctx, cert, nullptr, &resolvedRole, &roleSource), SCF_SUCCESS);
+    EXPECT_EQ(resolvedRole, param.role);
+    EXPECT_EQ(roleSource, SCF_RBAC_ROLE_SRC_MAPPING);
+    ASSERT_EQ(SCF_EnableRbac(ctx, true), SCF_SUCCESS);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx, cert, param.nodeId.c_str(), SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), SCF_SUCCESS);
+    const int32_t defaultDecision = param.role == SCF_RBAC_ROLE_MASTER ? SCF_SUCCESS : SCF_ERRNO_RBAC_DENIED;
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx, cert, "resource-node", SCF_RES_TYPE_FD,
+        SCF_RES_ACTION_APPLY), defaultDecision);
+    VerifyPolicyEffectDecision(ctx, cert, param, SCF_POLICY_EFFECT_ALLOW, SCF_SUCCESS);
+    VerifyPolicyEffectDecision(ctx, cert, param, SCF_POLICY_EFFECT_DENY, SCF_ERRNO_RBAC_DENIED);
+}
+
 TEST_P(TestRbacSubjectIdentityChain, ComparesAsteriskAndOrdinaryNodeAcrossTheCompletePermissionChain)
 {
     const SubjectIdentityChainParam &param = GetParam();
@@ -1637,68 +1692,11 @@ TEST_P(TestRbacSubjectIdentityChain, ComparesAsteriskAndOrdinaryNodeAcrossTheCom
     int certificateToken = 0;
     const void *cert = &certificateToken;
 
-    char parsedNodeId[MAX_NODE_ID_LEN] = {0};
-    size_t parsedNodeIdLen = 0;
     if (param.nodeId == "*") {
-        EXPECT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen),
-            SCF_SSL_ERR_PARSE_CERT);
-        EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, param.nodeId.c_str(), param.role), SCF_ERRNO_INVALID_PARAM);
-        SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
-        SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
-        EXPECT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &resolvedRole, &roleSource), SCF_SSL_ERR_PARSE_CERT);
-        uint32_t ruleId = 0;
-        EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
-            SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
-        EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
-            SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_DENY, &ruleId), SCF_ERRNO_RBAC_POLICY_INVALID);
-        ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
-        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
-            SCF_RES_ACTION_APPLY), SCF_SSL_ERR_PARSE_CERT);
+        VerifyWildcardSubjectIdentityChain(ctx_, param, cert);
         return;
     }
-    ASSERT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen), SCF_SUCCESS);
-    EXPECT_EQ(std::string(parsedNodeId, parsedNodeIdLen), param.nodeId);
-    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, param.nodeId.c_str(), param.role), SCF_SUCCESS);
-
-    SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
-    SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
-    ASSERT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &resolvedRole, &roleSource), SCF_SUCCESS);
-    EXPECT_EQ(resolvedRole, param.role);
-    EXPECT_EQ(roleSource, SCF_RBAC_ROLE_SRC_MAPPING);
-    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
-
-    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, param.nodeId.c_str(), SCF_RES_TYPE_FD,
-        SCF_RES_ACTION_APPLY), SCF_SUCCESS);
-    const int32_t defaultCrossNodeDecision = param.role == SCF_RBAC_ROLE_MASTER ? SCF_SUCCESS : SCF_ERRNO_RBAC_DENIED;
-    EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
-        SCF_RES_ACTION_APPLY), defaultCrossNodeDecision);
-
-    uint32_t allowRuleId = 0;
-    const int32_t expectedRuleResult = param.nodeId == "*" ? SCF_ERRNO_RBAC_POLICY_INVALID : SCF_SUCCESS;
-    EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
-        SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_ALLOW, &allowRuleId), expectedRuleResult);
-    if (expectedRuleResult == SCF_SUCCESS) {
-        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
-            SCF_RES_ACTION_APPLY), SCF_SUCCESS);
-        ASSERT_EQ(SCF_RemovePolicyRule(ctx_, allowRuleId), SCF_SUCCESS);
-    } else {
-        EXPECT_EQ(allowRuleId, 0U);
-        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
-            SCF_RES_ACTION_APPLY), defaultCrossNodeDecision);
-    }
-
-    uint32_t denyRuleId = 0;
-    EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.nodeId.c_str(), "resource-node", SCF_RES_TYPE_FD,
-        SCF_RES_ACTION_APPLY, SCF_POLICY_EFFECT_DENY, &denyRuleId), expectedRuleResult);
-    if (expectedRuleResult == SCF_SUCCESS) {
-        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
-            SCF_RES_ACTION_APPLY), SCF_ERRNO_RBAC_DENIED);
-        EXPECT_EQ(SCF_RemovePolicyRule(ctx_, denyRuleId), SCF_SUCCESS);
-    } else {
-        EXPECT_EQ(denyRuleId, 0U);
-        EXPECT_EQ(SCF_CheckResourcePermission(ctx_, cert, "resource-node", SCF_RES_TYPE_FD,
-            SCF_RES_ACTION_APPLY), defaultCrossNodeDecision);
-    }
+    VerifyOrdinarySubjectIdentityChain(ctx_, param, cert);
 }
 
 INSTANTIATE_TEST_SUITE_P(AsteriskAndOrdinarySubjects, TestRbacSubjectIdentityChain,
@@ -1707,6 +1705,90 @@ INSTANTIATE_TEST_SUITE_P(AsteriskAndOrdinarySubjects, TestRbacSubjectIdentityCha
         SubjectIdentityChainParam{"a", SCF_RBAC_ROLE_SLAVE},
         SubjectIdentityChainParam{"*", SCF_RBAC_ROLE_MASTER},
         SubjectIdentityChainParam{"*", SCF_RBAC_ROLE_SLAVE}));
+
+struct PermissionCombinationValidity {
+    bool policyTarget;
+    bool permissionTarget;
+    bool permissionResource;
+    bool permissionAction;
+    bool rule;
+};
+
+static PermissionCombinationValidity GetPermissionCombinationValidity(
+    const SubjectPermissionCombinationParam &param)
+{
+    PermissionCombinationValidity validity{};
+    validity.policyTarget = !param.targetNodeId.empty() && param.targetNodeId.size() < MAX_NODE_ID_LEN;
+    validity.permissionTarget = validity.policyTarget && param.targetNodeId != "*";
+    validity.permissionResource = param.resourceType == SCF_RES_TYPE_FD ||
+        param.resourceType == SCF_RES_TYPE_NUMA || param.resourceType == SCF_RES_TYPE_ADDR;
+    validity.permissionAction =
+        param.action == SCF_RES_ACTION_APPLY || param.action == SCF_RES_ACTION_RELEASE;
+    const bool ruleResource = param.resourceType != SCF_RES_TYPE_NONE &&
+        (param.resourceType & ~SCF_RES_TYPE_ALL) == SCF_RES_TYPE_NONE;
+    const uint32_t actionBitmap = static_cast<uint32_t>(param.action);
+    const bool ruleAction = actionBitmap != SCF_RES_ACTION_UNKNOWN &&
+        (actionBitmap & ~(SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE)) == SCF_RES_ACTION_UNKNOWN;
+    const bool validEffect = param.effect == SCF_POLICY_EFFECT_ALLOW || param.effect == SCF_POLICY_EFFECT_DENY;
+    validity.rule = validity.policyTarget && ruleResource && ruleAction && validEffect;
+    return validity;
+}
+
+static void VerifyWildcardPermissionCombination(SCF_PolicyCtx *ctx, const void *cert,
+    const SubjectPermissionCombinationParam &param, const PermissionCombinationValidity &validity)
+{
+    char parsedNodeId[MAX_NODE_ID_LEN] = {0};
+    size_t parsedNodeIdLen = 0;
+    EXPECT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen),
+        SCF_SSL_ERR_PARSE_CERT);
+    EXPECT_EQ(SCF_SetNodeRoleMapping(ctx, param.subjectNodeId.c_str(), param.role), SCF_ERRNO_INVALID_PARAM);
+    uint32_t ruleId = 0;
+    EXPECT_EQ(SCF_AddPolicyRule(ctx, param.subjectNodeId.c_str(), param.targetNodeId.c_str(),
+        param.resourceType, static_cast<uint32_t>(param.action), param.effect, &ruleId),
+        SCF_ERRNO_RBAC_POLICY_INVALID);
+    ASSERT_EQ(SCF_EnableRbac(ctx, true), SCF_SUCCESS);
+    const int32_t permissionResult = SCF_CheckResourcePermission(
+        ctx, cert, param.targetNodeId.c_str(), param.resourceType, param.action);
+    const bool validPermissionInput =
+        validity.permissionTarget && validity.permissionResource && validity.permissionAction;
+    EXPECT_EQ(permissionResult, validPermissionInput ? SCF_SSL_ERR_PARSE_CERT : SCF_ERRNO_INVALID_PARAM);
+}
+
+static int32_t GetExpectedPermissionDecision(const SubjectPermissionCombinationParam &param,
+    const PermissionCombinationValidity &validity)
+{
+    if (!validity.permissionTarget || !validity.permissionResource || !validity.permissionAction) {
+        return SCF_ERRNO_INVALID_PARAM;
+    }
+    if (validity.rule) {
+        return param.effect == SCF_POLICY_EFFECT_ALLOW ? SCF_SUCCESS : SCF_ERRNO_RBAC_DENIED;
+    }
+    const bool defaultAllow = param.role == SCF_RBAC_ROLE_MASTER || param.targetNodeId == param.subjectNodeId;
+    return defaultAllow ? SCF_SUCCESS : SCF_ERRNO_RBAC_DENIED;
+}
+
+static void VerifyOrdinaryPermissionCombination(SCF_PolicyCtx *ctx, const void *cert,
+    const SubjectPermissionCombinationParam &param, const PermissionCombinationValidity &validity)
+{
+    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx, param.subjectNodeId.c_str(), param.role), SCF_SUCCESS);
+    SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
+    SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
+    ASSERT_EQ(SCF_GetNodeRbacRole(ctx, cert, nullptr, &resolvedRole, &roleSource), SCF_SUCCESS);
+    EXPECT_EQ(resolvedRole, param.role);
+    EXPECT_EQ(roleSource, SCF_RBAC_ROLE_SRC_MAPPING);
+    ASSERT_EQ(SCF_EnableRbac(ctx, true), SCF_SUCCESS);
+
+    uint32_t ruleId = 0;
+    const int32_t addResult = SCF_AddPolicyRule(ctx, param.subjectNodeId.c_str(), param.targetNodeId.c_str(),
+        param.resourceType, static_cast<uint32_t>(param.action), param.effect, &ruleId);
+    EXPECT_EQ(addResult, validity.rule ? SCF_SUCCESS : static_cast<int32_t>(SCF_ERRNO_RBAC_POLICY_INVALID));
+    EXPECT_EQ(ruleId != 0, validity.rule);
+    EXPECT_EQ(SCF_CheckResourcePermission(ctx, cert, param.targetNodeId.c_str(), param.resourceType, param.action),
+        GetExpectedPermissionDecision(param, validity));
+    if (validity.rule) {
+        EXPECT_EQ(SCF_RemovePolicyRule(ctx, ruleId), SCF_SUCCESS);
+    }
+}
 
 TEST_P(TestRbacSubjectPermissionCombinations, ComparesRuleValidationAndPermissionDecisionForEveryCombination)
 {
@@ -1717,71 +1799,12 @@ TEST_P(TestRbacSubjectPermissionCombinations, ComparesRuleValidationAndPermissio
     int certificateToken = 0;
     const void *cert = &certificateToken;
 
-    const bool validPolicyTarget = !param.targetNodeId.empty() && param.targetNodeId.size() < MAX_NODE_ID_LEN;
-    const bool validPermissionTarget = validPolicyTarget && param.targetNodeId != "*";
-    const bool validPermissionResource = param.resourceType == SCF_RES_TYPE_FD ||
-        param.resourceType == SCF_RES_TYPE_NUMA || param.resourceType == SCF_RES_TYPE_ADDR;
-    const bool validPermissionAction =
-        param.action == SCF_RES_ACTION_APPLY || param.action == SCF_RES_ACTION_RELEASE;
+    const PermissionCombinationValidity validity = GetPermissionCombinationValidity(param);
     if (param.subjectNodeId == "*") {
-        char parsedNodeId[MAX_NODE_ID_LEN] = {0};
-        size_t parsedNodeIdLen = 0;
-        EXPECT_EQ(SCF_GetCertNodeId(cert, parsedNodeId, sizeof(parsedNodeId), &parsedNodeIdLen),
-            SCF_SSL_ERR_PARSE_CERT);
-        EXPECT_EQ(SCF_SetNodeRoleMapping(ctx_, param.subjectNodeId.c_str(), param.role), SCF_ERRNO_INVALID_PARAM);
-        uint32_t ruleId = 0;
-        EXPECT_EQ(SCF_AddPolicyRule(ctx_, param.subjectNodeId.c_str(), param.targetNodeId.c_str(),
-            param.resourceType, static_cast<uint32_t>(param.action), param.effect, &ruleId),
-            SCF_ERRNO_RBAC_POLICY_INVALID);
-        ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
-        const int32_t permissionResult = SCF_CheckResourcePermission(ctx_, cert, param.targetNodeId.c_str(),
-            param.resourceType, param.action);
-        if (!validPermissionTarget || !validPermissionResource || !validPermissionAction) {
-            EXPECT_EQ(permissionResult, SCF_ERRNO_INVALID_PARAM);
-        } else {
-            EXPECT_EQ(permissionResult, SCF_SSL_ERR_PARSE_CERT);
-        }
+        VerifyWildcardPermissionCombination(ctx_, cert, param, validity);
         return;
     }
-
-    ASSERT_EQ(SCF_SetNodeRoleMapping(ctx_, param.subjectNodeId.c_str(), param.role), SCF_SUCCESS);
-    SCF_RBAC_ROLE resolvedRole = SCF_RBAC_ROLE_UNKNOWN;
-    SCF_RBAC_ROLE_SOURCE roleSource = SCF_RBAC_ROLE_SRC_NONE;
-    ASSERT_EQ(SCF_GetNodeRbacRole(ctx_, cert, nullptr, &resolvedRole, &roleSource), SCF_SUCCESS);
-    ASSERT_EQ(resolvedRole, param.role);
-    ASSERT_EQ(roleSource, SCF_RBAC_ROLE_SRC_MAPPING);
-    ASSERT_EQ(SCF_EnableRbac(ctx_, true), SCF_SUCCESS);
-
-    const bool validRuleResource = param.resourceType != SCF_RES_TYPE_NONE &&
-        (param.resourceType & ~SCF_RES_TYPE_ALL) == SCF_RES_TYPE_NONE;
-    const uint32_t actionBitmap = static_cast<uint32_t>(param.action);
-    const bool validRuleAction = actionBitmap != SCF_RES_ACTION_UNKNOWN &&
-        (actionBitmap & ~(SCF_RES_ACTION_APPLY | SCF_RES_ACTION_RELEASE)) == SCF_RES_ACTION_UNKNOWN;
-    const bool validEffect = param.effect == SCF_POLICY_EFFECT_ALLOW || param.effect == SCF_POLICY_EFFECT_DENY;
-    const bool validRule = validPolicyTarget && validRuleResource && validRuleAction && validEffect;
-
-    uint32_t ruleId = 0;
-    const int32_t addResult = SCF_AddPolicyRule(ctx_, param.subjectNodeId.c_str(), param.targetNodeId.c_str(),
-        param.resourceType, actionBitmap, param.effect, &ruleId);
-    EXPECT_EQ(addResult,
-        validRule ? SCF_SUCCESS : static_cast<int32_t>(SCF_ERRNO_RBAC_POLICY_INVALID));
-    EXPECT_EQ(ruleId != 0, validRule);
-
-    const int32_t permissionResult = SCF_CheckResourcePermission(ctx_, cert, param.targetNodeId.c_str(),
-        param.resourceType, param.action);
-    if (!validPermissionTarget || !validPermissionResource || !validPermissionAction) {
-        EXPECT_EQ(permissionResult, SCF_ERRNO_INVALID_PARAM);
-    } else if (validRule) {
-        EXPECT_EQ(permissionResult,
-            param.effect == SCF_POLICY_EFFECT_ALLOW ? SCF_SUCCESS : static_cast<int32_t>(SCF_ERRNO_RBAC_DENIED));
-    } else {
-        const bool defaultAllow = param.role == SCF_RBAC_ROLE_MASTER || param.targetNodeId == param.subjectNodeId;
-        EXPECT_EQ(permissionResult,
-            defaultAllow ? SCF_SUCCESS : static_cast<int32_t>(SCF_ERRNO_RBAC_DENIED));
-    }
-    if (validRule) {
-        EXPECT_EQ(SCF_RemovePolicyRule(ctx_, ruleId), SCF_SUCCESS);
-    }
+    VerifyOrdinaryPermissionCombination(ctx_, cert, param, validity);
 }
 
 INSTANTIATE_TEST_SUITE_P(AsteriskOrdinaryAndAllOtherBoundaries, TestRbacSubjectPermissionCombinations,
