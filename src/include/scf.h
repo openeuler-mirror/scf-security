@@ -256,7 +256,7 @@ uint8_t *SCF_GetCertSerialNumber(const void *cert, uint32_t *dataLen);
 
 /**
  * @ingroup scf
- * @brief 从证书自定义扩展中获取节点身份标识。
+ * @brief 从证书自定义扩展中获取节点身份标识；策略保留字 "*" 不是合法节点身份。
  * @param cert [IN] 证书指针。
  * @param nodeIdBuffer [OUT] 节点 ID 输出缓冲区。
  * @param bufferLen [IN] 输出缓冲区长度，至少为 2。
@@ -278,7 +278,7 @@ int32_t SCF_GetCertRbacRole(const void *cert, SCF_RBAC_ROLE *role);
  * @ingroup scf
  * @brief 新增或覆盖节点 ID 到 RBAC 角色的内存映射。
  * @param ctx [IN] 安全策略上下文。
- * @param nodeId [IN] 以空字符结尾的节点 ID。
+ * @param nodeId [IN] 以空字符结尾的节点 ID；不允许使用策略保留字 "*"。
  * @param role [IN] MASTER 或 SLAVE 角色。
  * @return SCF_SUCCESS 或错误码。
  * @attention 任一使用该 ctx 的连接建链成功后，映射表被冻结，接口返回 SCF_ERRNO_RBAC_MAP_FROZEN。
@@ -289,7 +289,7 @@ int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_
  * @ingroup scf
  * @brief 从策略上下文中删除节点 ID 的角色映射。
  * @param ctx [IN] 安全策略上下文。
- * @param nodeId [IN] 待删除的节点 ID。
+ * @param nodeId [IN] 待删除的节点 ID；不允许使用策略保留字 "*"。
  * @return SCF_SUCCESS、SCF_ERRNO_RBAC_MAP_NOT_FOUND 或错误码。
  * @attention 任一使用该 ctx 的连接建链成功后，映射表被冻结，接口返回 SCF_ERRNO_RBAC_MAP_FROZEN。
  */
@@ -300,7 +300,7 @@ int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId);
  * @brief 获取节点 RBAC 角色，证书角色优先于节点角色映射。
  * @param ctx [IN] 安全策略上下文。
  * @param cert [IN] 可选证书指针；非空时优先从证书获取节点 ID 和角色。
- * @param nodeId [IN] cert 为空时用于查询映射的节点 ID。
+ * @param nodeId [IN] cert 为空时用于查询映射的节点 ID；不允许使用策略保留字 "*"。
  * @param role [OUT] 解析出的角色。
  * @param src [OUT] 角色来源。
  * @return SCF_SUCCESS、SCF_ERRNO_RBAC_ROLE_UNKNOWN、SCF_ERRNO_CERT_NODE_ID_ABSENT 或错误码。
@@ -336,7 +336,7 @@ int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LE
  * @ingroup scf
  * @brief 查询映射表中的节点是否为 master。
  * @param ctx [IN] 安全策略上下文。
- * @param nodeId [IN] 待查询节点 ID。
+ * @param nodeId [IN] 待查询节点 ID；不允许使用策略保留字 "*"。
  * @param isMaster [OUT] 是否为 master；映射不存在时写入 false。
  * @return SCF_SUCCESS、SCF_ERRNO_RBAC_MAP_NOT_FOUND 或错误码。
  */
@@ -386,7 +386,7 @@ int32_t SCF_ListPolicyRules(SCF_PolicyCtx *ctx, SCF_PolicyRule *rules, uint32_t 
  * @brief 校验本端节点对目标节点资源的申请或释放权限。
  * @param ctx [IN] 安全策略上下文。
  * @param localCert [IN] 本端操作节点证书。
- * @param targetNodeId [IN] 目标资源所属节点 ID。
+ * @param targetNodeId [IN] 目标资源所属节点 ID；不允许使用策略保留字 "*"。
  * @param resourceType [IN] 单个资源类型，仅支持 FD、NUMA 或 ADDR。
  * @param action [IN] 单个资源动作，仅支持申请或释放。
  * @return SCF_SUCCESS、SCF_ERRNO_RBAC_DENIED 或错误码。
