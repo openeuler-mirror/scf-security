@@ -424,13 +424,7 @@ KAEProviderEngineFactory::KAEProviderEngineFactory(const KAEProviderConfig &conf
 
 ICryptoEngine *KAEProviderEngineFactory::Create()
 {
-    ICryptoEngine *pEngine = new (std::nothrow) KAEProviderEngine(m_config);
-    if (pEngine == nullptr) {
-        CCSEC_LOG_ERROR(
-            "|KAEProviderEngineFactory::Create|END|returnF|Failed to allocate memory for KAEProviderEngine");
-        return nullptr;
-    }
-    return pEngine;
+    return new (std::nothrow) KAEProviderEngine(m_config);
 }
 
 const char *KAEProviderEngineFactory::GetName() const

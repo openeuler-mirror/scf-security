@@ -454,12 +454,7 @@ TransportResult SocketTransport::MapSocketError() const
 
 ITransport *SocketTransportFactory::Create()
 {
-    ITransport *pTransport = new (std::nothrow) SocketTransport();
-    if (pTransport == nullptr) {
-        CCSEC_LOG_ERROR("|SocketTransportFactory::Create|END|returnF|Failed to allocate memory for SocketTransport");
-        return nullptr;
-    }
-    return pTransport;
+    return new (std::nothrow) SocketTransport();
 }
 
 TransportProtocol SocketTransportFactory::GetProtocol() const

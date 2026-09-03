@@ -132,12 +132,7 @@ ITransport *UrmaTransport::Clone() const
 
 ITransport *UrmaTransportFactory::Create()
 {
-    ITransport *pTransport = new (std::nothrow) UrmaTransport();
-    if (pTransport == nullptr) {
-        CCSEC_LOG_ERROR("|UrmaTransportFactory::Create|END|returnF|Failed to allocate memory for UrmaTransport");
-        return nullptr;
-    }
-    return pTransport;
+    return new (std::nothrow) UrmaTransport();
 }
 
 TransportProtocol UrmaTransportFactory::GetProtocol() const

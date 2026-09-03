@@ -3125,7 +3125,8 @@ SCFConnection *SCF_NewClientConnection(
 SCFConnection *SCF_NewServerConnection(
     SCF_SECURITY_LEVEL securityLevel,
     const std::string &certPath,
-    const std::string &keyPath);
+    const std::string &keyPath,
+    const std::string &caCertPath);
 
 SCFConnection *SCF_NewPSKConnection(
     SCF_SECURITY_LEVEL securityLevel,
@@ -3134,10 +3135,10 @@ SCFConnection *SCF_NewPSKConnection(
     const uint8_t *pskKey, size_t pskKeyLen);
 ```
 
-| 接口 | 参数与行为 |
-|---|---|
-| SCF_NewClientConnection | 创建客户端连接；`caCertPath` 为空时不校验对端证书 |
-| SCF_NewServerConnection | 使用指定服务端证书和私钥创建服务端连接 |
+| 接口 | 参数与行为                                                  |
+|---|--------------------------------------------------------|
+| SCF_NewClientConnection | 创建客户端连接；`caCertPath` 为空时不校验对端证书                        |
+| SCF_NewServerConnection | 使用指定服务端证书、私钥和CA证书创建服务端连接;`caCertPath` 为空时不校验对端证书       |
 | SCF_NewPSKConnection | 创建保存指定角色、PSK 身份和密钥的连接对象；当前实现未注册 PSK 会话回调，不能完成实际 PSK 建链 |
 
 成功时返回由调用方 `delete` 的 `SCFConnection`，失败时返回 `nullptr`。

@@ -391,7 +391,7 @@ bool DefaultSoftwareCryptoEngine::HMAC(HashAlgorithm algo, const uint8_t *key, s
     size_t dataLen, uint8_t *mac, size_t *macLen)
 {
     if (keyLen > static_cast<size_t>(INT_MAX)) {
-        CCSEC_LOG_ERROR("DefaultSoftwareCryptoEngine keyLen is larger than  INT_MAX:" << INT_MAX);
+        CCSEC_LOG_ERROR("DefaultSoftwareCryptoEngine keyLen is larger than INT_MAX");
         return false;
     }
 
@@ -507,7 +507,7 @@ bool DefaultSoftwareCryptoEngine::HKDFExpand(
 bool DefaultSoftwareCryptoEngine::RandomBytes(uint8_t *buffer, size_t len)
 {
     if (len > static_cast<size_t>(INT_MAX)) {
-        CCSEC_LOG_ERROR("|DefaultSoftwareCryptoEngine|RandomBytes|len is larger thsn INT_MAX:" << INT_MAX);
+        CCSEC_LOG_ERROR("|DefaultSoftwareCryptoEngine|RandomBytes|len is larger than INT_MAX");
         return false;
     }
     return LibCryptoApi::GetInstance().RAND_bytes(buffer, static_cast<int>(len)) == SSL_SUCCESS;
@@ -558,13 +558,7 @@ const char *DefaultSoftwareCryptoEngine::GetAcceleratedAlgorithms() const
 
 ICryptoEngine *DefaultSoftwareCryptoEngineFactory::Create()
 {
-    ICryptoEngine *pEngine = new (std::nothrow) DefaultSoftwareCryptoEngine();
-    if (pEngine == nullptr) {
-        CCSEC_LOG_ERROR("|DefaultSoftwareCryptoEngineFactory::Create|END|returnF|Failed to allocate memory for "
-                        "DefaultSoftwareCryptoEngine");
-        return nullptr;
-    }
-    return pEngine;
+    return new (std::nothrow) DefaultSoftwareCryptoEngine();
 }
 
 const char *DefaultSoftwareCryptoEngineFactory::GetName() const
