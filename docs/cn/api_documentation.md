@@ -2759,10 +2759,10 @@ int32_t SCF_SetNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId, SCF_RBAC_
 必须以空字符结尾，有效长度为 1～127 字节；角色只能为 `SCF_RBAC_ROLE_MASTER` 或
 `SCF_RBAC_ROLE_SLAVE`。任一使用该上下文的连接成功建链后，映射表冻结，不再允许新增、覆盖或删除。
 
-| 参数名 | 参数类型 | 是否必选 | 描述 |
-|---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
-| nodeId | [IN] | 是 | 非空且以空字符结尾的节点 ID，有效长度为 1～127 字节。 |
+| 参数名 | 参数类型 | 是否必选 | 描述                                                                                        |
+|---|---|---|-------------------------------------------------------------------------------------------|
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。                                                   |
+| nodeId | [IN] | 是 | 非空且以空字符结尾的节点 ID，不允许使用策略保留字 "*"，有效长度为 1～127 字节。                                            |
 | role | [IN] | 是 | 节点角色，见[1.1.15 RBAC 角色](#1115-rbac-角色)；只允许 `SCF_RBAC_ROLE_MASTER` 或 `SCF_RBAC_ROLE_SLAVE`。 |
 
 ##### 返回值
@@ -2782,10 +2782,10 @@ int32_t SCF_RemoveNodeRoleMapping(SCF_PolicyCtx *ctx, const char *nodeId);
 节点 ID 必须以空字符结尾，有效长度为 1～127 字节，且必须存在于当前策略上下文的映射表中。任一使用该
 上下文的连接成功建链后，映射表冻结，不再允许删除。
 
-| 参数名 | 参数类型 | 是否必选 | 描述 |
-|---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
-| nodeId | [IN] | 是 | 待删除的节点 ID，必须以空字符结尾，有效长度为 1～127 字节。 |
+| 参数名 | 参数类型 | 是否必选 | 描述                                                |
+|---|---|---|---------------------------------------------------|
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。           |
+| nodeId | [IN] | 是 | 待删除的节点 ID，必须以空字符结尾，不允许使用策略保留字 "*"，有效长度为 1～127 字节。 |
 
 ##### 返回值
 
@@ -2807,13 +2807,13 @@ int32_t SCF_GetNodeRbacRole(SCF_PolicyCtx *ctx, const void *cert, const char *no
 [2.6.2 SCF_GetCertRbacRole](#262-SCF_GetCertRbacRole)的规格约束；未传入证书时，`nodeId` 必须以空字符结尾且有效长度为
 1～127 字节。映射查询只读，映射表冻结后仍可调用本接口。
 
-| 参数名 | 参数类型 | 是否必选 | 描述 |
-|---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
+| 参数名 | 参数类型 | 是否必选 | 描述                                                                                                                                                                  |
+|---|---|---|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。                                                                                                                             |
 | cert | [IN] | 否 | 可选证书句柄，通过[SCF_GetCurrentCert](#228-SCF_GetCurrentCert)或[SCF_GetPeerCert](#229-SCF_GetPeerCert)获取，使用完成后通过[SCF_FreeCert](#2210-SCF_FreeCert)释放；非空时优先使用证书中的角色和 NodeId。 |
-| nodeId | [IN] | 条件必选 | `cert` 为空或者证书中没有角色和NodeId扩展时用于映射表查询，必须以空字符结尾且有效长度为 1～127 字节；`cert` 非空且有角色或NodeId扩展时不会作为证书身份的替代。 |
-| role | [OUT] | 是 | 解析出的节点角色，见[1.1.15 RBAC 角色](#1115-rbac-角色)。 |
-| src | [OUT] | 是 | 角色来源，见[1.1.16 RBAC 角色来源](#1116-rbac-角色来源)。 |
+| nodeId | [IN] | 条件必选 | `cert` 为空或者证书中没有角色和NodeId扩展时用于映射表查询，必须以空字符结尾且有效长度为 1～127 字节，不允许使用策略保留字 "*"；`cert` 非空且有角色或NodeId扩展时不会作为证书身份的替代。                                                      |
+| role | [OUT] | 是 | 解析出的节点角色，见[1.1.15 RBAC 角色](#1115-rbac-角色)。                                                                                                                          |
+| src | [OUT] | 是 | 角色来源，见[1.1.16 RBAC 角色来源](#1116-rbac-角色来源)。                                                                                                                          |
 
 ##### 返回值
 
@@ -2893,11 +2893,11 @@ int32_t SCF_IsMasterNode(SCF_PolicyCtx *ctx, const char *nodeId, bool *isMaster)
 初始化为 `false`，因此映射不存在时返回 `SCF_ERRNO_RBAC_MAP_NOT_FOUND`，同时输出保持为 `false`；
 调用方应通过返回码区分 slave 与映射不存在。
 
-| 参数名 | 参数类型 | 是否必选 | 描述 |
-|---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
-| nodeId | [IN] | 是 | 待查询的节点 ID，必须以空字符结尾，有效长度为 1～127 字节。 |
-| isMaster | [OUT] | 是 | 查询结果；master 为 `true`，slave 或映射不存在为 `false`。 |
+| 参数名 | 参数类型 | 是否必选 | 描述                                                |
+|---|---|---|---------------------------------------------------|
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。           |
+| nodeId | [IN] | 是 | 待查询的节点 ID，必须以空字符结尾，不允许使用策略保留字 "*"，有效长度为 1～127 字节。 |
+| isMaster | [OUT] | 是 | 查询结果；master 为 `true`，slave 或映射不存在为 `false`。       |
 
 ##### 返回值
 
@@ -2926,15 +2926,15 @@ int32_t SCF_AddPolicyRule(SCF_PolicyCtx *ctx, const char *subjectNodeId, const c
 `ruleId` 不参与匹配键判断。单个策略上下文最多保存 8192 条规则；添加成功后 `ruleId` 在该上下文内
 唯一且不复用。
 
-| 参数名 | 参数类型 | 是否必选 | 描述 |
-|---|---|---|---|
-| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。 |
-| subjectNodeId | [IN] | 是 | 发起操作的精确节点 ID，不支持通配符，有效长度为 1～127 字节。 |
-| targetNodeId | [IN] | 是 | 目标节点 ID（有效长度为 1～127 字节）或通配符 `"*"`。 |
-| resourceTypeBitmap | [IN] | 是 | 非零资源类型位图，取值见[1.1.18 RBAC 资源类型](#1118-rbac-资源类型)。 |
-| actionBitmap | [IN] | 是 | 非零资源操作位图，取值见[1.1.17 RBAC 资源操作](#1117-rbac-资源操作)。 |
-| effect | [IN] | 是 | 规则效果，见[1.1.19 RBAC 策略效果](#1119-rbac-策略效果)。 |
-| ruleId | [OUT] | 是 | 新增规则的唯一 ID，仅在成功时写入。 |
+| 参数名 | 参数类型 | 是否必选 | 描述                                                                                                     |
+|---|---|---|--------------------------------------------------------------------------------------------------------|
+| ctx | [IN] | 是 | 安全策略上下文，见[1.2.2 安全策略上下文](#122-安全策略上下文)。                                                                |
+| subjectNodeId | [IN] | 是 | 发起操作的精确节点 ID，不支持通配符，有效长度为 1～127 字节。                                                                    |
+| targetNodeId | [IN] | 是 | 目标节点 ID（有效长度为 1～127 字节）或通配符 `"*"`。                                                                     |
+| resourceTypeBitmap | [IN] | 是 | 非零资源类型位图，取值见[1.1.18 RBAC 资源类型](#1118-rbac-资源类型)。                                                       |
+| actionBitmap | [IN] | 是 | 非零资源操作位图，取值见[1.1.17 RBAC 资源操作](#1117-rbac-资源操作)，仅允许 SCF_RES_ACTION_APPLY 和 SCF_RES_ACTION_RELEASE 的组合。 |
+| effect | [IN] | 是 | 规则效果，见[1.1.19 RBAC 策略效果](#1119-rbac-策略效果)，仅允许 SCF_POLICY_EFFECT_ALLOW 或 SCF_POLICY_EFFECT_DENY。                                                            |
+| ruleId | [OUT] | 是 | 新增规则的唯一 ID，仅在成功时写入。                                                                                    |
 
 ##### 返回值
 
@@ -3019,13 +3019,13 @@ int32_t SCF_CheckResourcePermission(SCF_PolicyCtx *ctx, const void *localCert,
 在匹配的自定义规则中，主体、目标、资源类型和动作越精确者优先，同一优先级下 `DENY` 优先于
 `ALLOW`。规则更新会立即影响后续调用，单次调用在一致的规则快照下完成裁决。
 
-| 参数名 | 参数类型 | 是否必选 | 描述 |
-|---|---|---|---|
-| ctx | [IN] | 是 | 已创建且已启用 RBAC 的安全策略上下文。 |
+| 参数名 | 参数类型 | 是否必选 | 描述                        |
+|---|---|---|---------------------------|
+| ctx | [IN] | 是 | 已创建且已启用 RBAC 的安全策略上下文。    |
 | localCert | [IN] | 是 | 本端操作节点证书，用于解析 NodeId 与角色。 |
-| targetNodeId | [IN] | 是 | 目标资源所属的非空节点 ID。 |
-| resourceType | [IN] | 是 | 单个资源类型。 |
-| action | [IN] | 是 | 单个资源动作。 |
+| targetNodeId | [IN] | 是 | 目标资源所属的非空节点 ID，不允许使用策略保留字 "*"。          |
+| resourceType | [IN] | 是 | 单个资源类型。                   |
+| action | [IN] | 是 | 单个资源动作。                   |
 
 ##### 返回值
 
@@ -3125,7 +3125,8 @@ SCFConnection *SCF_NewClientConnection(
 SCFConnection *SCF_NewServerConnection(
     SCF_SECURITY_LEVEL securityLevel,
     const std::string &certPath,
-    const std::string &keyPath);
+    const std::string &keyPath,
+    const std::string &caCertPath);
 
 SCFConnection *SCF_NewPSKConnection(
     SCF_SECURITY_LEVEL securityLevel,
@@ -3134,10 +3135,10 @@ SCFConnection *SCF_NewPSKConnection(
     const uint8_t *pskKey, size_t pskKeyLen);
 ```
 
-| 接口 | 参数与行为 |
-|---|---|
-| SCF_NewClientConnection | 创建客户端连接；`caCertPath` 为空时不校验对端证书 |
-| SCF_NewServerConnection | 使用指定服务端证书和私钥创建服务端连接 |
+| 接口 | 参数与行为                                                  |
+|---|--------------------------------------------------------|
+| SCF_NewClientConnection | 创建客户端连接；`caCertPath` 为空时不校验对端证书                        |
+| SCF_NewServerConnection | 使用指定服务端证书、私钥和CA证书创建服务端连接;`caCertPath` 为空时不校验对端证书       |
 | SCF_NewPSKConnection | 创建保存指定角色、PSK 身份和密钥的连接对象；当前实现未注册 PSK 会话回调，不能完成实际 PSK 建链 |
 
 成功时返回由调用方 `delete` 的 `SCFConnection`，失败时返回 `nullptr`。

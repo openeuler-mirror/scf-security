@@ -12,6 +12,7 @@
  */
 
 #include "policy_matcher.h"
+#include "custom_logger.h"
 
 namespace scf {
 static bool IsRuleMatched(const SCF_PolicyRule &rule, const PolicyMatchRequest &request)
@@ -46,6 +47,10 @@ static bool ShouldReplaceMatch(uint32_t priority, SCF_POLICY_EFFECT effect, uint
 bool MatchPolicyRule(
     const std::map<uint32_t, SCF_PolicyRule> &rules, const PolicyMatchRequest &request, SCF_POLICY_EFFECT *effect)
 {
+    if (effect == nullptr) {
+        CCSEC_LOG_ERROR("|bool MatchPolicyRule(|END|returnF||effect is nullptr.");
+        return false;
+    }
     uint32_t highestPriority = 0;
     for (const auto &item : rules) {
         const auto &rule = item.second;

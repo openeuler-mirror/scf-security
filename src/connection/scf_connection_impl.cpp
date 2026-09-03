@@ -357,7 +357,12 @@ private:
 
 SCFConnection *SCFConnection::Create(const SCFConnectionConfig &config)
 {
-    return new SCFConnectionImpl(config);
+    SCFConnection *pScfConnection = new (std::nothrow) SCFConnectionImpl(config);
+    if (pScfConnection == nullptr) {
+        CCSEC_LOG_ERROR("|SCFConnection::Create|END|returnF|Failed to allocate memory for SCFConnectionImpl");
+        return nullptr;
+    }
+    return pScfConnection;
 }
 
 // ============================================================
@@ -866,7 +871,14 @@ SCFConnection *SCFConnectionImpl::Accept()
     }
 
     // 创建新的连接实例
-    auto *newConn = new SCFConnectionImpl(m_config);
+    auto *newConn = new (std::nothrow) SCFConnectionImpl(m_config);
+    if (newConn == nullptr) {
+        clientTransport->Close();
+        delete clientTransport;
+        clientTransport = nullptr;
+        CCSEC_LOG_ERROR("|SCFConnectionImpl::Accept|END|returnF|Failed to allocate memory for SCFConnectionImpl");
+        return nullptr;
+    }
     newConn->m_transport = clientTransport;
     newConn->m_isServer = true;
 
@@ -1073,17 +1085,20 @@ SCFConnection *SCF_NewClientConnection(
     return SCFConnection::Create(cfg);
 }
 
-SCFConnection *SCF_NewServerConnection(
-    SCF_SECURITY_LEVEL securityLevel,
-    const std::string &certPath, const std::string &keyPath)
+SCFConnection *SCF_NewServerConnection(SCF_SECURITY_LEVEL securityLevel, const std::string &certPath,
+    const std::string &keyPath, const std::string &caCertPath)
 {
     SCFConnectionConfig cfg;
     cfg.securityLevel = securityLevel;
     cfg.role = SCF_ROLE_SERVER;
     cfg.certPath = certPath;
     cfg.keyPath = keyPath;
-    cfg.certVerifyPolicy = SCF_CERT_VERIFY_REQUIRED;
-
+    if (!caCertPath.empty()) {
+        cfg.caCertPath = caCertPath;
+        cfg.certVerifyPolicy = SCF_CERT_VERIFY_REQUIRED;
+    } else {
+        cfg.certVerifyPolicy = SCF_CERT_VERIFY_NONE;
+    }
     return SCFConnection::Create(cfg);
 }
 

@@ -5,6 +5,7 @@
  * === SCF v2.0 新 API 示例：证书认证服务端 ===
  */
 
+#include <cstring>
 #include <iostream>
 #include <string>
 
@@ -17,9 +18,7 @@ bool TestServerNewAPI(uint16_t listenPort)
 
     // 创建服务端连接监听器
     auto *listener = scf::SCF_NewServerConnection(
-        scf::SCF_SECURITY_128BIT,
-        "/etc/scf/certs/server.pem",
-        "/etc/scf/certs/server-key.pem");
+        scf::SCF_SECURITY_128BIT, "/etc/scf/certs/server.pem", "/etc/scf/certs/server-key.pem", "");
 
     if (listener == nullptr) {
         std::cerr << "Failed to create server listener" << std::endl;

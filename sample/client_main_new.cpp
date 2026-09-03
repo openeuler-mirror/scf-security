@@ -148,9 +148,8 @@ bool TestServerNewAPI(uint16_t listenPort)
     scf::SCF_Init(SCF_INIT_FLAG_OPENSSL, nullptr);
 
     // 创建服务端连接，输入：NIST 128-bit 安全强度, 服务端证书， 服务端私钥
-    auto *listener = scf::SCF_NewServerConnection(scf::SCF_SECURITY_128BIT,
-                                                  "/etc/scf/certs/server.pem",
-                                                  "/etc/scf/certs/server-key.pem");
+    auto *listener = scf::SCF_NewServerConnection(
+        scf::SCF_SECURITY_128BIT, "/etc/scf/certs/server.pem", "/etc/scf/certs/server-key.pem", "");
 
     if (listener == nullptr) {
         scf::SCF_DeInit();

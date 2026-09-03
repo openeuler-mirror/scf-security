@@ -293,7 +293,12 @@ const char *KAEProviderEngine::GetAcceleratedAlgorithms() const
 ICryptoEngine *KAEProviderEngine::GetFallbackEngine()
 {
     if (m_fallbackEngine == nullptr) {
-        m_fallbackEngine = new DefaultSoftwareCryptoEngine();
+        m_fallbackEngine = new (std::nothrow) DefaultSoftwareCryptoEngine();
+        if (m_fallbackEngine == nullptr) {
+            CCSEC_LOG_ERROR("|KAEProviderEngine::GetFallbackEngine|RND|returnF|Failed to allocate memory for "
+                            "DefaultSoftwareCryptoEngine");
+            return nullptr;
+        }
         CryptoEngineConfig cfg;
         m_fallbackEngine->Initialize(cfg);
     }
@@ -419,7 +424,7 @@ KAEProviderEngineFactory::KAEProviderEngineFactory(const KAEProviderConfig &conf
 
 ICryptoEngine *KAEProviderEngineFactory::Create()
 {
-    return new KAEProviderEngine(m_config);
+    return new (std::nothrow) KAEProviderEngine(m_config);
 }
 
 const char *KAEProviderEngineFactory::GetName() const
