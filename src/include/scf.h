@@ -324,9 +324,9 @@ int32_t SCF_EnableRbac(SCF_PolicyCtx *ctx, bool enable);
  * @ingroup scf
  * @brief 获取映射表中所有 master 节点的快照。
  * @param ctx [IN] 安全策略上下文。
- * @param nodeIdList [OUT] master 节点 ID 数组。
+ * @param nodeIdList [OUT] master 节点 ID 数组，每个元素的大小必须为 `MAX_NODE_ID_LEN`。
  * @param listCap [IN] 输出数组容量。
- * @param actualCount [OUT] 实际写入的节点数量。
+ * @param actualCount [OUT] 实际写入的节点数量，最大为 `listCap`。
  * @return SCF_SUCCESS 或错误码。
  */
 int32_t SCF_ListMasterNodes(SCF_PolicyCtx *ctx, char nodeIdList[][MAX_NODE_ID_LEN], uint32_t listCap,

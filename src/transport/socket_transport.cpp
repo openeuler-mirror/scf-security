@@ -125,8 +125,11 @@ TransportResult SocketTransport::Bind(const TransportAddress &addr, int32_t back
 
     // 设置 SO_REUSEADDR
     int opt = 1;
-    ::setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
+    if (::setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        int savedErrno = errno;
+        CCSEC_LOG_WARN("SocketTransport::Bind Failed to set SO_REUSEADDR, errno: "
+                       << savedErrno << " (" << strerror(savedErrno) << "). Socket may not be immediately reusable.");
+    }
     if (::bind(m_fd, static_cast<struct sockaddr *>(static_cast<void *>(&sockAddr)), addrLen) < 0) {
         CCSEC_LOG_ERROR("bind failed, errno:" << errno);
         Close();
@@ -169,11 +172,20 @@ ITransport *SocketTransport::Accept()
     }
 
     // 设置新连接的选项
-    SetNonBlocking(clientFd);
-
-    auto *transport = new SocketTransport(clientFd);
+    TransportResult ret = SetNonBlocking(clientFd);
+    if (ret != TransportResult::SUCCESS) {
+        CCSEC_LOG_ERROR("|SocketTransport::Accept|END|returnF|Failed to set non-blocking mode for client fd "
+                        << clientFd << ", errno: " << errno);
+        ::close(clientFd); // 失败时关闭 fd，防止资源泄漏
+        return nullptr;
+    }
+    auto *transport = new (std::nothrow) SocketTransport(clientFd);
+    if (transport == nullptr) {
+        ::close(clientFd); // 失败时关闭 fd，防止资源泄漏
+        CCSEC_LOG_ERROR("|SocketTransport::Accept|END|returnF|Failed to allocate memory for SocketTransport.");
+        return nullptr;
+    }
     transport->m_config = m_config;
-
     // 提取对端地址信息
     if (clientAddr.ss_family == AF_INET) {
         auto *sin = static_cast<struct sockaddr_in *>(static_cast<void *>(&clientAddr));
@@ -197,7 +209,6 @@ TransportResult SocketTransport::Send(const uint8_t *data, size_t len, size_t *s
     if (m_fd < 0 || !m_connected) {
         return TransportResult::ERROR;
     }
-
     ssize_t n = ::send(m_fd, data, len, MSG_NOSIGNAL);
     if (n > 0) {
         *sentLen = static_cast<size_t>(n);
@@ -281,7 +292,11 @@ TransportResult SocketTransport::SetConfig(const TransportConfig &config)
 
 ITransport *SocketTransport::Clone() const
 {
-    auto *copy = new SocketTransport();
+    auto *copy = new (std::nothrow) SocketTransport();
+    if (copy == nullptr) {
+        CCSEC_LOG_ERROR("|SocketTransport::Clone|END|returnF|Failed to allocate memory for SocketTransport.");
+        return nullptr;
+    }
     copy->m_fd = m_fd;  // 注意: 不复制 fd，调用方自行管理生命周期
     copy->m_connected = m_connected;
     copy->m_bound = m_bound;
@@ -439,7 +454,12 @@ TransportResult SocketTransport::MapSocketError() const
 
 ITransport *SocketTransportFactory::Create()
 {
-    return new SocketTransport();
+    ITransport *pTransport = new (std::nothrow) SocketTransport();
+    if (pTransport == nullptr) {
+        CCSEC_LOG_ERROR("|SocketTransportFactory::Create|END|returnF|Failed to allocate memory for SocketTransport");
+        return nullptr;
+    }
+    return pTransport;
 }
 
 TransportProtocol SocketTransportFactory::GetProtocol() const

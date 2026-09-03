@@ -59,6 +59,10 @@ TransportResult UrmaTransport::Send(const uint8_t *data, size_t len, size_t *sen
 {
     (void)data;
     (void)len;
+    if (sentLen == nullptr) {
+        CCSEC_LOG_ERROR("URMA transport Send sentLen is nullptr");
+        return TransportResult::ERROR;
+    }
     *sentLen = 0;
     CCSEC_LOG_WARN("URMA transport Send not yet implemented (stub)");
     return TransportResult::ERROR;
@@ -68,6 +72,10 @@ TransportResult UrmaTransport::Recv(uint8_t *data, size_t len, size_t *recvLen)
 {
     (void)data;
     (void)len;
+    if (recvLen == nullptr) {
+        CCSEC_LOG_ERROR("URMA transport Send recvLen is nullptr");
+        return TransportResult::ERROR;
+    }
     *recvLen = 0;
     CCSEC_LOG_WARN("URMA transport Recv not yet implemented (stub)");
     return TransportResult::ERROR;
@@ -106,7 +114,11 @@ TransportResult UrmaTransport::SetConfig(const TransportConfig &config)
 
 ITransport *UrmaTransport::Clone() const
 {
-    auto *copy = new UrmaTransport();
+    auto *copy = new (std::nothrow) UrmaTransport();
+    if (copy == nullptr) {
+        CCSEC_LOG_ERROR("|UrmaTransport::Clone|END|returnF|Failed to allocate memory for UrmaTransport.");
+        return nullptr;
+    }
     copy->m_connected = m_connected;
     copy->m_localAddr = m_localAddr;
     copy->m_remoteAddr = m_remoteAddr;
@@ -120,7 +132,12 @@ ITransport *UrmaTransport::Clone() const
 
 ITransport *UrmaTransportFactory::Create()
 {
-    return new UrmaTransport();
+    ITransport *pTransport = new (std::nothrow) UrmaTransport();
+    if (pTransport == nullptr) {
+        CCSEC_LOG_ERROR("|UrmaTransportFactory::Create|END|returnF|Failed to allocate memory for UrmaTransport");
+        return nullptr;
+    }
+    return pTransport;
 }
 
 TransportProtocol UrmaTransportFactory::GetProtocol() const

@@ -903,6 +903,10 @@ static uint64_t GetCipherSuitesStrLen(const uint16_t *cipherSuites, uint32_t cip
 int32_t OpenSSLAdaptor::SetCipherSuites(SCF_PolicyCtx *ctx, const uint16_t *cipherSuites,
     uint32_t cipherSuitesSize)
 {
+    if (ctx == nullptr || cipherSuites == nullptr) {
+        CCSEC_LOG_ERROR("Openssl SetCipherSuites ctx or  cipherSuites is null.");
+        return SCF_ERRNO_NULL_INPUT;
+    }
     uint64_t offset = 0;
     uint64_t strLen = 0;
     int ret;
@@ -945,6 +949,10 @@ int32_t OpenSSLAdaptor::SetCipherSuites(SCF_PolicyCtx *ctx, const uint16_t *ciph
 
 uint32_t OpenSSLAdaptor::MapVersion2NoOpt(int64_t version, uint32_t *sslOp)
 {
+    if (sslOp == nullptr) {
+        CCSEC_LOG_ERROR("Openssl MapVersion2NoOpt Fail: sslOp is null.");
+        return SCF_ERRNO_NULL_INPUT;
+    }
     // support TLSv1.2 and TLSv1.3
     switch (version) {
         case TLS1_2_VERSION:
@@ -963,6 +971,10 @@ uint32_t OpenSSLAdaptor::MapVersion2NoOpt(int64_t version, uint32_t *sslOp)
 int32_t OpenSSLAdaptor::SetProtocolVersion(SCF_PolicyCtx *ctx, uint32_t minVersion, uint32_t maxVersion,
     uint32_t *forbidVersion, uint32_t forbidVersionLen)
 {
+    if (ctx == nullptr) {
+        CCSEC_LOG_ERROR("SetProtocolVersion ctx is null");
+        return SCF_ERRNO_NULL_INPUT;
+    }
     SSL_CTX *sslCtxConfig = ctx->sslConfig;
     if (SSL_CTX_set_min_proto_version(sslCtxConfig, minVersion) != SSL_SUCCESS ||
         SSL_CTX_set_max_proto_version(sslCtxConfig, maxVersion) != SSL_SUCCESS) {
@@ -992,12 +1004,20 @@ int32_t OpenSSLAdaptor::SetProtocolVersion(SCF_PolicyCtx *ctx, uint32_t minVersi
 
 int32_t OpenSSLAdaptor::SetAppVerifyCallback(SCF_PolicyCtx *ctx, SCF_AppVerifyFunc cb, void *arg)
 {
+    if (ctx == nullptr) {
+        CCSEC_LOG_ERROR("SetAppVerifyCallback ctx is null");
+        return SCF_ERRNO_NULL_INPUT;
+    }
     LibSslApi::GetInstance().SSL_CTX_set_cert_verify_callback(ctx->sslConfig, cb, arg);
     return SCF_SUCCESS;
 }
 
 int32_t OpenSSLAdaptor::CheckPrivateKey(SCF_PolicyCtx *ctx)
 {
+    if (ctx == nullptr) {
+        CCSEC_LOG_ERROR("Openssl Check PrivateKey ctx is null");
+        return SCF_ERRNO_NULL_INPUT;
+    }
     int32_t ret = LibSslApi::GetInstance().SSL_CTX_check_private_key(ctx->sslConfig);
     if (ret != SSL_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl Check PrivateKey Fail.");
@@ -1306,6 +1326,10 @@ void OpenSSLAdaptor::FreeBuffer(char **buffer, size_t &bufferLen)
 
 int32_t OpenSSLAdaptor::ProtocolStrToInt(const char *version, int32_t &intVer)
 {
+    if (version == nullptr) {
+        CCSEC_LOG_ERROR("ProtocolStrToInt version is null");
+        return SCF_ERRNO_NULL_INPUT;
+    }
     std::unordered_map<std::string, int32_t> protocolMap{
         {"TLSv1.2", TLS1_2_VERSION},
         {"TLSv1.3", TLS1_3_VERSION}
@@ -1332,9 +1356,12 @@ int32_t OpenSSLAdaptor::ProtocolIntToStr(const int32_t &version, std::string &st
     return SCF_SUCCESS;
 }
 
-
 int32_t OpenSSLAdaptor::SessionSetProtocolVersion(SCF_Session *sess, const char *version)
 {
+    if (sess == nullptr || version == nullptr) {
+        CCSEC_LOG_ERROR("Openssl SessionSetProtocolVersion sess or version is null");
+        return SCF_ERRNO_NULL_INPUT;
+    }
     int sslVersion = 0;
     if (ProtocolStrToInt(version, sslVersion) != SCF_SUCCESS) {
         CCSEC_LOG_ERROR("Openssl SessionSetProtocolVersion Map Protocol Ver Fail.");

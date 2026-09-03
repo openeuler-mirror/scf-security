@@ -11,6 +11,7 @@
 #include "lib_crypto_api.h"
 #include "custom_logger.h"
 
+#include <climits>
 #include <cstring>
 
 namespace scf {
@@ -136,10 +137,8 @@ bool DefaultSoftwareCryptoEngine::IsInitialized() const
     return m_initialized;
 }
 
-bool DefaultSoftwareCryptoEngine::EncryptAEAD(
-    SymmetricAlgorithm algo, const uint8_t *key, size_t keyLen,
-    const uint8_t *iv, size_t ivLen, const uint8_t *plaintext, size_t plaintextLen,
-    const uint8_t *aad, size_t aadLen,
+bool DefaultSoftwareCryptoEngine::EncryptAEAD(SymmetricAlgorithm algo, const uint8_t *key, size_t keyLen,
+    const uint8_t *iv, size_t ivLen, const uint8_t *plaintext, size_t plaintextLen, const uint8_t *aad, size_t aadLen,
     uint8_t *ciphertext, size_t *ciphertextLen, uint8_t *tag, size_t tagLen)
 {
     auto &cryptoIns = LibCryptoApi::GetInstance();
@@ -157,15 +156,10 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
 
     bool ok = false;
     do {
-        if (cryptoIns.EVP_EncryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS) {
-            break;
-        }
-        auto ret = cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr);
-        if (ret != SSL_SUCCESS) {
-            break;
-        }
-
-        if (cryptoIns.EVP_EncryptInit_ex(ctx, nullptr, nullptr, key, iv) != SSL_SUCCESS) {
+        if (cryptoIns.EVP_EncryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS ||
+            cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr) !=
+            SSL_SUCCESS ||
+            cryptoIns.EVP_EncryptInit_ex(ctx, nullptr, nullptr, key, iv) != SSL_SUCCESS) {
             break;
         }
 
@@ -175,7 +169,11 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
                 break;
             }
         }
-        ret = cryptoIns.EVP_EncryptUpdate(ctx, ciphertext, &outLen, plaintext, static_cast<int>(plaintextLen));
+        if (plaintextLen > static_cast<size_t>(INT_MAX)) {
+            CCSEC_LOG_ERROR("EncryptAEAD: plaintextLen is too large.");
+            break;
+        }
+        auto ret = cryptoIns.EVP_EncryptUpdate(ctx, ciphertext, &outLen, plaintext, static_cast<int>(plaintextLen));
         if (ret != SSL_SUCCESS) {
             break;
         }
@@ -197,11 +195,9 @@ bool DefaultSoftwareCryptoEngine::EncryptAEAD(
     return ok;
 }
 
-bool DefaultSoftwareCryptoEngine::DecryptAEAD(
-    SymmetricAlgorithm algo, const uint8_t *key, size_t keyLen,
-    const uint8_t *iv, size_t ivLen, const uint8_t *ciphertext, size_t ciphertextLen,
-    const uint8_t *aad, size_t aadLen, const uint8_t *tag, size_t tagLen,
-    uint8_t *plaintext, size_t *plaintextLen)
+bool DefaultSoftwareCryptoEngine::DecryptAEAD(SymmetricAlgorithm algo, const uint8_t *key, size_t keyLen,
+    const uint8_t *iv, size_t ivLen, const uint8_t *ciphertext, size_t ciphertextLen, const uint8_t *aad, size_t aadLen,
+    const uint8_t *tag, size_t tagLen, uint8_t *plaintext, size_t *plaintextLen)
 {
     auto &cryptoIns = LibCryptoApi::GetInstance();
     (void)keyLen;
@@ -218,15 +214,10 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
 
     bool ok = false;
     do {
-        if (cryptoIns.EVP_DecryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS) {
-            break;
-        }
-        auto ret = cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr);
-        if (ret != SSL_SUCCESS) {
-            break;
-        }
-
-        if (cryptoIns.EVP_DecryptInit_ex(ctx, nullptr, nullptr, key, iv) != SSL_SUCCESS) {
+        if (cryptoIns.EVP_DecryptInit_ex(ctx, cipher, nullptr, nullptr, nullptr) != SSL_SUCCESS ||
+            cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(ivLen), nullptr) !=
+            SSL_SUCCESS ||
+            cryptoIns.EVP_DecryptInit_ex(ctx, nullptr, nullptr, key, iv) != SSL_SUCCESS) {
             break;
         }
 
@@ -236,13 +227,17 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
                 break;
             }
         }
-        ret = cryptoIns.EVP_DecryptUpdate(ctx, plaintext, &outLen, ciphertext, static_cast<int>(ciphertextLen));
+        if (ciphertextLen > static_cast<size_t>(INT_MAX)) {
+            CCSEC_LOG_ERROR("DecryptAEAD: ciphertextLen is too large.");
+            break;
+        }
+        auto ret = cryptoIns.EVP_DecryptUpdate(ctx, plaintext, &outLen, ciphertext, static_cast<int>(ciphertextLen));
         if (ret != SSL_SUCCESS) {
             break;
         }
         *plaintextLen = static_cast<size_t>(outLen);
-        ret = cryptoIns.EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, static_cast<int>(tagLen),
-            const_cast<uint8_t *>(tag));
+        ret = cryptoIns.EVP_CIPHER_CTX_ctrl(
+            ctx, EVP_CTRL_AEAD_SET_TAG, static_cast<int>(tagLen), const_cast<uint8_t *>(tag));
         if (ret != SSL_SUCCESS) {
             break;
         }
@@ -255,7 +250,6 @@ bool DefaultSoftwareCryptoEngine::DecryptAEAD(
 
         ok = true;
     } while (false);
-
     cryptoIns.EVP_CIPHER_CTX_free(ctx);
     return ok;
 }
@@ -396,6 +390,11 @@ bool DefaultSoftwareCryptoEngine::Hash(
 bool DefaultSoftwareCryptoEngine::HMAC(HashAlgorithm algo, const uint8_t *key, size_t keyLen, const uint8_t *data,
     size_t dataLen, uint8_t *mac, size_t *macLen)
 {
+    if (keyLen > static_cast<size_t>(INT_MAX)) {
+        CCSEC_LOG_ERROR("DefaultSoftwareCryptoEngine keyLen is larger than  INT_MAX:" << INT_MAX);
+        return false;
+    }
+
     const EVP_MD *md = MapHashAlgo(algo);
     if (md == nullptr) {
         return false;
@@ -507,6 +506,10 @@ bool DefaultSoftwareCryptoEngine::HKDFExpand(
 
 bool DefaultSoftwareCryptoEngine::RandomBytes(uint8_t *buffer, size_t len)
 {
+    if (len > static_cast<size_t>(INT_MAX)) {
+        CCSEC_LOG_ERROR("|DefaultSoftwareCryptoEngine|RandomBytes|len is larger thsn INT_MAX:" << INT_MAX);
+        return false;
+    }
     return LibCryptoApi::GetInstance().RAND_bytes(buffer, static_cast<int>(len)) == SSL_SUCCESS;
 }
 
@@ -555,7 +558,13 @@ const char *DefaultSoftwareCryptoEngine::GetAcceleratedAlgorithms() const
 
 ICryptoEngine *DefaultSoftwareCryptoEngineFactory::Create()
 {
-    return new DefaultSoftwareCryptoEngine();
+    ICryptoEngine *pEngine = new (std::nothrow) DefaultSoftwareCryptoEngine();
+    if (pEngine == nullptr) {
+        CCSEC_LOG_ERROR("|DefaultSoftwareCryptoEngineFactory::Create|END|returnF|Failed to allocate memory for "
+                        "DefaultSoftwareCryptoEngine");
+        return nullptr;
+    }
+    return pEngine;
 }
 
 const char *DefaultSoftwareCryptoEngineFactory::GetName() const

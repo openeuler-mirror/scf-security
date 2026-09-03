@@ -361,12 +361,15 @@ SCFConnection *SCF_NewClientConnection(
  * @param securityLevel 安全级别
  * @param certPath 服务端证书路径
  * @param keyPath 服务端私钥路径
+ * @param caPath  CA证书路径 (空字符串表示不校验)
  * @return 连接实例，失败返回 nullptr
  */
 SCFConnection *SCF_NewServerConnection(
     SCF_SECURITY_LEVEL securityLevel,
     const std::string &certPath,
-    const std::string &keyPath);
+    const std::string &keyPath,
+    const std::string &caCertPath
+    );
 
 /**
  * @brief 快速创建 PSK 安全连接
