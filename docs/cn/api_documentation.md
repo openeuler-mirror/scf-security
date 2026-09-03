@@ -23,12 +23,31 @@
         - [1.1.17 RBAC 资源操作](#1117-rbac-资源操作)
         - [1.1.18 RBAC 资源类型](#1118-rbac-资源类型)
         - [1.1.19 RBAC 策略效果](#1119-rbac-策略效果)
+        - [1.1.20 连接安全强度](#1120-连接安全强度)
+        - [1.1.21 证书校验策略](#1121-证书校验策略)
+        - [1.1.22 连接状态](#1122-连接状态)
+        - [1.1.23 对称加密算法](#1123-对称加密算法)
+        - [1.1.24 非对称算法](#1124-非对称算法)
+        - [1.1.25 哈希算法](#1125-哈希算法)
+        - [1.1.26 密钥交换算法](#1126-密钥交换算法)
+        - [1.1.27 传输操作结果](#1127-传输操作结果)
+        - [1.1.28 传输地址类型](#1128-传输地址类型)
+        - [1.1.29 传输协议类型](#1129-传输协议类型)
+        - [1.1.30 PSK 哈希算法标识](#1130-psk-哈希算法标识)
+        - [1.1.31 安全强度常量](#1131-安全强度常量)
+        - [1.1.32 TLS 命名组常量](#1132-tls-命名组常量)
     - [1.2 结构体](#12-结构体)
         - [1.2.1 文件上下文](#121-文件上下文)
         - [1.2.2 安全策略上下文](#122-安全策略上下文)
         - [1.2.3 安全策略对象](#123-安全策略对象)
         - [1.2.4 安全会话对象](#124-安全会话对象)
         - [1.2.5 RBAC 策略规则](#125-rbac-策略规则)
+        - [1.2.6 安全连接配置](#126-安全连接配置)
+        - [1.2.7 密码引擎能力](#127-密码引擎能力)
+        - [1.2.8 密码引擎配置](#128-密码引擎配置)
+        - [1.2.9 密钥句柄](#129-密钥句柄)
+        - [1.2.10 传输端点地址](#1210-传输端点地址)
+        - [1.2.11 传输配置](#1211-传输配置)
     - [1.3 回调函数定义](#13-回调函数定义)
         - [1.3.1 ExternalLogFunction](#131-ExternalLogFunction)
         - [1.3.2 ExternalDecryptFunction](#132-ExternalDecryptFunction)
@@ -114,6 +133,18 @@
         - [2.7.6 SCF_ListPolicyRules](#276-SCF_ListPolicyRules)
     - [2.8 RBAC 资源权限校验](#28-rbac-资源权限校验)
         - [2.8.1 SCF_CheckResourcePermission](#281-SCF_CheckResourcePermission)
+    - [2.9 安全连接接口](#29-安全连接接口)
+        - [2.9.1 SCFConnection](#291-SCFConnection)
+        - [2.9.2 安全连接便捷函数](#292-安全连接便捷函数)
+        - [2.9.3 传输与密码引擎注册](#293-传输与密码引擎注册)
+    - [2.10 密码引擎接口](#210-密码引擎接口)
+        - [2.10.1 ICryptoEngine](#2101-ICryptoEngine)
+        - [2.10.2 DefaultSoftwareCryptoEngine](#2102-DefaultSoftwareCryptoEngine)
+        - [2.10.3 密码引擎工厂](#2103-密码引擎工厂)
+    - [2.11 传输接口](#211-传输接口)
+        - [2.11.1 TransportAddress 工厂方法](#2111-TransportAddress-工厂方法)
+        - [2.11.2 ITransport](#2112-ITransport)
+        - [2.11.3 ITransportFactory](#2113-ITransportFactory)
 
 ## 1 数据结构
 
@@ -129,7 +160,7 @@
 
 ##### 用途
 
-在调用[SCF_Init](#214-SCF_Init)时指定初始化的底层TLS实现
+在调用[SCF_Init](#214-SCF_Init)时指定初始化的底层 TLS 实现。
 
 ##### 属性说明
 
@@ -326,18 +357,18 @@ typedef enum {
 
 ##### 用途
 
-在调用[SCF_Init](#214-SCF_Init)时指定初始化的底层TLS实现
+在调用[SCF_SetCipherSuites](#2113-SCF_SetCipherSuites)或[SCF_SessionSetCipher](#236-SCF_SessionSetCipher)时指定算法套。
 
 ##### 属性说明
 
 | 名称                                                  | 值      | 含义                        |
 |-----------------------------------------------------|--------|---------------------------|
-| SCF_SSL_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256       | 0xC02B | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384       | 0xC02C | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_RSA_WITH_AES_128_GCM_SHA256         | 0xC02F | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_RSA_WITH_AES_256_GCM_SHA384         | 0xC030 | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256   | 0xCCA8 | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 | 0xCCA9 | 取值来源rfc8446，仅支持TLS1.2协议使用 |
+| SCF_SSL_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256       | 0xC02B | 取值来源 RFC 5289，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384       | 0xC02C | 取值来源 RFC 5289，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_RSA_WITH_AES_128_GCM_SHA256         | 0xC02F | 取值来源 RFC 5289，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_RSA_WITH_AES_256_GCM_SHA384         | 0xC030 | 取值来源 RFC 5289，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256   | 0xCCA8 | 取值来源 RFC 7905，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 | 0xCCA9 | 取值来源 RFC 7905，仅支持 TLS 1.2 |
 | SCF_SSL_AES_128_GCM_SHA256                        | 0x1301 | 取值来源rfc8446，仅支持TLS1.3协议使用 |
 | SCF_SSL_AES_256_GCM_SHA384                        | 0x1302 | 取值来源rfc8446，仅支持TLS1.3协议使用 |
 | SCF_SSL_CHACHA20_POLY1305_SHA256                  | 0x1303 | 取值来源rfc8446，仅支持TLS1.3协议使用 |
@@ -386,7 +417,7 @@ std::unordered_map<std::string, uint32_t> tlsVersionMap = {
 
 ##### 用途
 
-配置文件中配置TLS协议的最小版本、最大版本、禁用版本
+在安全通信配置文件的 `tlsVersion.minVersion`、`tlsVersion.maxVersion` 和 `tlsVersion.forbidVersion` 字段中指定协议版本。
 
 ##### 属性说明
 
@@ -418,18 +449,18 @@ inline std::unordered_map<std::string, SCF_SSL_CipherSuite> cipherMap = {
 
 ##### 用途
 
-配置文件中配置TLS协议的最小版本、最大版本、禁用版本
+在安全通信配置文件的 `tlsCipherSuites` 数组中指定算法套。
 
 ##### 属性说明
 
 | 名称                                                  | 值      | 含义                        |
 |-----------------------------------------------------|--------|---------------------------|
-| SCF_SSL_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256       | 0xC02B | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384       | 0xC02C | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_RSA_WITH_AES_128_GCM_SHA256         | 0xC02F | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_RSA_WITH_AES_256_GCM_SHA384         | 0xC030 | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256   | 0xCCA8 | 取值来源rfc8446，仅支持TLS1.2协议使用 |
-| SCF_SSL_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 | 0xCCA9 | 取值来源rfc8446，仅支持TLS1.2协议使用 |
+| SCF_SSL_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256       | 0xC02B | 取值来源 RFC 5289，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384       | 0xC02C | 取值来源 RFC 5289，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_RSA_WITH_AES_128_GCM_SHA256         | 0xC02F | 取值来源 RFC 5289，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_RSA_WITH_AES_256_GCM_SHA384         | 0xC030 | 取值来源 RFC 5289，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256   | 0xCCA8 | 取值来源 RFC 7905，仅支持 TLS 1.2 |
+| SCF_SSL_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 | 0xCCA9 | 取值来源 RFC 7905，仅支持 TLS 1.2 |
 | SCF_SSL_AES_128_GCM_SHA256                        | 0x1301 | 取值来源rfc8446，仅支持TLS1.3协议使用 |
 | SCF_SSL_AES_256_GCM_SHA384                        | 0x1302 | 取值来源rfc8446，仅支持TLS1.3协议使用 |
 | SCF_SSL_CHACHA20_POLY1305_SHA256                  | 0x1303 | 取值来源rfc8446，仅支持TLS1.3协议使用 |
@@ -450,7 +481,7 @@ std::unordered_map<std::string, SCF_CERT_TYPE> tlsCertTypeMap = {
 
 ##### 用途
 
-配置文件中配置TLS协议的最小版本、最大版本、禁用版本
+在安全通信配置文件的 `certs[].cert.certType` 字段中指定证书用途。
 
 ##### 属性说明
 
@@ -603,6 +634,167 @@ typedef enum SCFPolicyEffect {
 | SCF_POLICY_EFFECT_ALLOW | 0 | 允许访问 |
 | SCF_POLICY_EFFECT_DENY | 1 | 拒绝访问 |
 
+#### 1.1.20 连接安全强度
+
+`SCFSecurityLevel`（别名 `SCF_SECURITY_LEVEL`）用于配置 `SCFConnection` 的 TLS 版本、算法套和密钥交换组
+优先级。等级名称不保证最终协商结果达到对应的最低安全强度：部分等级允许较低强度算法或经典密钥交换组回退，
+密钥交换组配置失败时还会继续使用 OpenSSL 默认组。实际安全属性以握手协商结果为准；带 `_PQ` 后缀的优先项
+需要加载抗量子 Provider。
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_SECURITY_112BIT | 0 | 配置标签为 112-bit；TLS 1.2～1.3、AES-128/256-GCM、X25519/P-256 |
+| SCF_SECURITY_128BIT | 1 | 配置标签为 128-bit；TLS 1.3、AES-128/256-GCM、ChaCha20-Poly1305、X25519/P-256；默认值 |
+| SCF_SECURITY_192BIT | 2 | 优先 AES-256-GCM 和 P-384，同时允许 AES-128-GCM、X25519 回退 |
+| SCF_SECURITY_256BIT | 3 | 优先 AES-256-GCM 和 P-521，同时允许 AES-128-GCM、P-384、X25519 回退 |
+| SCF_SECURITY_128BIT_PQ | 4 | 优先 Hybrid Kyber 密钥交换组，同时允许经典 X25519/P-256 回退 |
+| SCF_SECURITY_256BIT_PQ | 5 | 优先 Hybrid Kyber/ML-KEM 密钥交换组，同时允许经典 P-521/P-384 回退 |
+
+#### 1.1.21 证书校验策略
+
+`SCFCertVerifyPolicy`（别名 `SCF_CERT_VERIFY_POLICY`）指定 `SCFConnection` 对对端证书的校验策略。
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_CERT_VERIFY_NONE | 0 | 不校验对端证书；可用于 PSK，证书模式下使用会失去对端身份认证能力并面临中间人攻击风险 |
+| SCF_CERT_VERIFY_OPTIONAL | 1 | 当前实现映射为 `SCF_VERIFY_DEFAULT`，实际仍要求并校验对端证书 |
+| SCF_CERT_VERIFY_REQUIRED | 2 | 对端必须提供有效证书；默认值 |
+| SCF_CERT_VERIFY_STRICT | 3 | 当前实现与 `SCF_CERT_VERIFY_REQUIRED` 使用相同校验模式 |
+
+CRL 是否加载由 `SCFConnectionConfig::crlPath` 独立控制；当前高层连接实现未配置 OCSP。因此，
+`SCF_CERT_VERIFY_OPTIONAL` 和 `SCF_CERT_VERIFY_STRICT` 暂未实现名称所表达的差异化行为。
+
+#### 1.1.22 连接状态
+
+`SCFConnectionState` 的别名为 `SCF_CONNECTION_STATE`。
+
+| `SCF_CONNECTION_STATE` 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_CONN_INIT | 0 | 初始状态 |
+| SCF_CONN_CONNECTING | 1 | 正在连接或进行 TLS 握手 |
+| SCF_CONN_CONNECTED | 2 | 安全通道已就绪 |
+| SCF_CONN_CLOSING | 3 | 正在关闭 |
+| SCF_CONN_CLOSED | 4 | 已关闭 |
+| SCF_CONN_ERROR | 5 | 错误状态 |
+
+#### 1.1.23 对称加密算法
+
+| `scf::SymmetricAlgorithm` 名称 | 值 | 含义 |
+|---|---|---|
+| AES_128_GCM | 1 | AES-128-GCM |
+| AES_256_GCM | 2 | AES-256-GCM |
+| AES_128_CCM | 3 | AES-128-CCM |
+| CHACHA20_POLY1305 | 4 | ChaCha20-Poly1305 |
+| SM4_GCM | 5 | SM4-GCM |
+| CUSTOM | 99 | 自定义对称算法 |
+
+#### 1.1.24 非对称算法
+
+| `scf::AsymmetricAlgorithm` 名称 | 值 | 含义 |
+|---|---|---|
+| RSA | 1 | RSA |
+| ECDSA_P256 | 2 | ECDSA P-256 |
+| ECDSA_P384 | 3 | ECDSA P-384 |
+| ECDSA_P521 | 4 | ECDSA P-521 |
+| EDDSA_25519 | 5 | EdDSA 25519 |
+| SM2 | 6 | 国密 SM2 |
+| CUSTOM | 99 | 自定义非对称算法 |
+
+#### 1.1.25 哈希算法
+
+| `scf::HashAlgorithm` 名称 | 值 | 含义 |
+|---|---|---|
+| SHA256 | 1 | SHA-256 |
+| SHA384 | 2 | SHA-384 |
+| SHA512 | 3 | SHA-512 |
+| SM3 | 4 | 国密 SM3 |
+| CUSTOM | 99 | 自定义哈希算法 |
+
+#### 1.1.26 密钥交换算法
+
+| `scf::KeyExchangeAlgorithm` 名称 | 值 | 含义 |
+|---|---|---|
+| ECDHE | 1 | ECDHE 密钥交换 |
+| DHE | 2 | DHE 密钥交换 |
+| PSK | 3 | PSK 密钥交换 |
+| SM2_KEY_EXCHANGE | 4 | 国密 SM2 密钥交换 |
+| CUSTOM | 99 | 自定义密钥交换算法 |
+
+#### 1.1.27 传输操作结果
+
+| `scf::TransportResult` 名称 | 值 | 含义 |
+|---|---|---|
+| SUCCESS | 0 | 操作成功 |
+| ERROR | -1 | 操作失败 |
+| WOULD_BLOCK | -2 | 非阻塞操作暂时无法完成，需要重试 |
+| CONNECTION_CLOSED | -3 | 连接已关闭 |
+| TIMEOUT | -4 | 操作超时 |
+
+#### 1.1.28 传输地址类型
+
+| `scf::TransportAddressType` 名称 | 值 | 含义 |
+|---|---|---|
+| IPv4 | 0 | IPv4 地址 |
+| IPv6 | 1 | IPv6 地址 |
+| DOMAIN | 2 | 域名 |
+| URMA | 3 | URMA 地址 |
+| CUSTOM | 99 | 自定义地址格式 |
+
+#### 1.1.29 传输协议类型
+
+| `scf::TransportProtocol` 名称 | 值 | 含义 |
+|---|---|---|
+| TCP | 0 | TCP 协议 |
+| UDP | 1 | UDP 协议 |
+| URMA | 2 | URMA 协议 |
+| CUSTOM | 99 | 自定义传输协议 |
+
+#### 1.1.30 PSK 哈希算法标识
+
+以下常量用于 `SCF_PskUseSessionCb` 的 `hashAlgo` 参数，表示 TLS 算法套使用的哈希算法。
+客户端在 ClientHello 阶段尚未确定算法套时，`hashAlgo` 为 `SCF_CRYPT_MD_UNKNOWN`。
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_CRYPT_MD_UNKNOWN | 0 | 哈希算法尚未确定 |
+| SCF_CRYPT_MD_SHA256 | 10006 | SHA-256 |
+| SCF_CRYPT_MD_SHA384 | 10007 | SHA-384 |
+
+#### 1.1.31 安全强度常量
+
+以下常量表示 NIST SP 800-57 对称密钥等效安全强度，供安全策略和算法映射使用。
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_SECURITY_STRENGTH_112BIT | 112 | 112-bit，3DES 等效安全强度 |
+| SCF_SECURITY_STRENGTH_128BIT | 128 | 128-bit，AES-128 等效安全强度 |
+| SCF_SECURITY_STRENGTH_192BIT | 192 | 192-bit，AES-192 等效安全强度 |
+| SCF_SECURITY_STRENGTH_256BIT | 256 | 256-bit，AES-256 等效安全强度 |
+
+#### 1.1.32 TLS 命名组常量
+
+以下字符串常量是 TLS 1.3 经典、后量子及混合密钥交换组名称。后量子组是否可用取决于运行时加载的
+OpenSSL Provider。
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_NAMED_GROUP_X25519 | `"X25519"` | X25519，128-bit 经典安全强度 |
+| SCF_NAMED_GROUP_P256 | `"P-256"` | ECDH P-256，128-bit 经典安全强度 |
+| SCF_NAMED_GROUP_P384 | `"P-384"` | ECDH P-384，192-bit 经典安全强度 |
+| SCF_NAMED_GROUP_P521 | `"P-521"` | ECDH P-521，256-bit 经典安全强度 |
+| SCF_NAMED_GROUP_KYBER512 | `"kyber512"` | Kyber-512，NIST Level 1 |
+| SCF_NAMED_GROUP_KYBER768 | `"kyber768"` | Kyber-768，NIST Level 3 |
+| SCF_NAMED_GROUP_KYBER1024 | `"kyber1024"` | Kyber-1024，NIST Level 5 |
+| SCF_NAMED_GROUP_MLKEM512 | `"mlkem512"` | FIPS 203 ML-KEM-512，NIST Level 1 |
+| SCF_NAMED_GROUP_MLKEM768 | `"mlkem768"` | FIPS 203 ML-KEM-768，NIST Level 3 |
+| SCF_NAMED_GROUP_MLKEM1024 | `"mlkem1024"` | FIPS 203 ML-KEM-1024，NIST Level 5 |
+| SCF_NAMED_GROUP_P256_KYBER512 | `"p256_kyber512"` | ECDH P-256 + Kyber-512 混合组 |
+| SCF_NAMED_GROUP_X25519_KYBER512 | `"x25519_kyber512"` | X25519 + Kyber-512 混合组 |
+| SCF_NAMED_GROUP_P384_KYBER768 | `"p384_kyber768"` | ECDH P-384 + Kyber-768 混合组 |
+| SCF_NAMED_GROUP_P521_KYBER1024 | `"p521_kyber1024"` | ECDH P-521 + Kyber-1024 混合组 |
+| SCF_NAMED_GROUP_X25519_MLKEM512 | `"x25519_mlkem512"` | X25519 + ML-KEM-512 混合组 |
+| SCF_NAMED_GROUP_P521_MLKEM1024 | `"p521_mlkem1024"` | ECDH P-521 + ML-KEM-1024 混合组 |
+
 ### 1.2 结构体
 
 #### 1.2.1 文件上下文
@@ -705,6 +897,100 @@ struct SCF_PolicyRule {
 | resourceTypeBitmap | 资源类型位图，取值见[1.1.18 RBAC 资源类型](#1118-rbac-资源类型) |
 | actionBitmap | 资源操作位图，取值见[1.1.17 RBAC 资源操作](#1117-rbac-资源操作) |
 | effect | 规则效果，见[1.1.19 RBAC 策略效果](#1119-rbac-策略效果) |
+
+#### 1.2.6 安全连接配置
+
+`scf::SCFConnectionConfig` 用于创建高层安全连接。构造函数默认创建客户端配置，使用 128-bit 经典安全配置、
+必须校验证书、默认 Socket 传输，且不指定自定义密码引擎工厂。
+
+| 名称 | 类型 | 默认值 | 含义 |
+|---|---|---|---|
+| kDefaultConnectTimeoutMs | `static constexpr uint32_t` | 5000 | 默认连接超时，单位 ms |
+| kDefaultHandshakeTimeoutMs | `static constexpr uint32_t` | 10000 | 默认 TLS 握手超时，单位 ms |
+| securityLevel | `SCF_SECURITY_LEVEL` | `SCF_SECURITY_128BIT` | 安全强度，见[1.1.20 连接安全强度](#1120-连接安全强度) |
+| role | `SCF_ROLE` | `SCF_ROLE_CLIENT` | 通信角色 |
+| caCertPath | `std::string` | 空 | CA 证书路径；校验对端时必填 |
+| certPath | `std::string` | 空 | 本端设备证书路径 |
+| keyPath | `std::string` | 空 | 本端私钥路径 |
+| keyPassword | `std::string` | 空 | 私钥口令；空表示无口令 |
+| crlPath | `std::string` | 空 | 可选 CRL 路径 |
+| certVerifyPolicy | `SCF_CERT_VERIFY_POLICY` | `SCF_CERT_VERIFY_REQUIRED` | 证书校验策略 |
+| pskIdentity | `std::string` | 空 | PSK 身份标识 |
+| pskKey | `std::vector<uint8_t>` | 空 | PSK 密钥 |
+| usePSK | `bool` | `false` | 是否使用与证书认证互斥的 PSK 模式 |
+| transportFactory | `ITransportFactory *` | `nullptr` | 自定义传输工厂；空表示使用默认 Socket |
+| cryptoEngineFactory | `ICryptoEngineFactory *` | `nullptr` | 自定义密码引擎工厂；空时尝试 KAE，KAE 不可用或初始化失败时不注入 `ICryptoEngine`，由 TLS 适配器使用常规 OpenSSL 软件路径 |
+| appVerifyCb | `SCF_AppVerifyFunc` | `nullptr` | 可选的自定义证书校验回调 |
+| appVerifyArg | `void *` | `nullptr` | 传给证书校验回调的用户数据 |
+| connectTimeoutMs | `uint32_t` | 5000 | 连接超时，0 表示不超时 |
+| handshakeTimeoutMs | `uint32_t` | 10000 | TLS 握手超时；当前实现保留该配置但尚未应用 |
+| enableSessionResumption | `bool` | `true` | 是否启用会话恢复；当前实现保留该配置但尚未应用 |
+| enableKeyAutoUpdate | `bool` | `true` | 是否启用自动密钥更新 |
+
+#### 1.2.7 密码引擎能力
+
+`scf::CryptoEngineCapability` 描述密码引擎身份、算法集合和硬件能力。
+
+| 名称 | 类型 | 默认值 | 含义 |
+|---|---|---|---|
+| engineName | `std::string` | 空 | 引擎名称 |
+| engineVersion | `std::string` | 空 | 引擎版本 |
+| hardwareVendor | `std::string` | 空 | 硬件厂商信息 |
+| symmetricAlgos | `std::vector<SymmetricAlgorithm>` | 空 | 支持的对称算法 |
+| asymmetricAlgos | `std::vector<AsymmetricAlgorithm>` | 空 | 支持的非对称算法 |
+| hashAlgos | `std::vector<HashAlgorithm>` | 空 | 支持的哈希算法 |
+| keyExchangeAlgos | `std::vector<KeyExchangeAlgorithm>` | 空 | 支持的密钥交换算法 |
+| hardwareAccelerated | `bool` | `false` | 是否使用硬件加速 |
+| supportsAsyncOperation | `bool` | `false` | 是否支持异步操作 |
+| supportsOffload | `bool` | `false` | 是否支持计算卸载 |
+| maxConcurrentOps | `uint32_t` | 0 | 最大并发操作数，0 表示不限制 |
+
+#### 1.2.8 密码引擎配置
+
+| `scf::CryptoEngineConfig` 名称 | 类型 | 默认值 | 含义 |
+|---|---|---|---|
+| kDefaultSessionPoolSize | `static constexpr uint32_t` | 16 | 默认会话池大小 |
+| kDefaultAsyncQueueDepth | `static constexpr uint32_t` | 64 | 默认异步队列深度 |
+| configFilePath | `std::string` | 空 | 引擎配置文件路径 |
+| devicePath | `std::string` | 空 | 硬件设备路径，如 `/dev/crypto` |
+| sessionPoolSize | `uint32_t` | 16 | 会话池大小 |
+| enableAsyncMode | `bool` | `false` | 是否启用异步模式 |
+| asyncQueueDepth | `uint32_t` | 64 | 异步队列深度 |
+
+#### 1.2.9 密钥句柄
+
+`scf::CryptoKeyHandle` 引用存储在密码引擎或硬件中的密钥。
+
+| 名称 | 类型 | 默认值 | 含义 |
+|---|---|---|---|
+| keyId | `uint64_t` | 0 | 密钥 ID |
+| keyLabel | `std::string` | 空 | 密钥标签 |
+| engineContext | `void *` | `nullptr` | 引擎内部上下文 |
+
+句柄由[ICryptoEngine::ImportKey](#2101-ICryptoEngine)写入，并通过 `DestroyKey` 销毁。
+
+#### 1.2.10 传输端点地址
+
+| `scf::TransportAddress` 名称 | 类型 | 默认值 | 含义 |
+|---|---|---|---|
+| type | `TransportAddressType` | `TransportAddressType::IPv4` | 地址类型 |
+| host | `std::string` | 空 | 主机、域名或后端自定义地址 |
+| port | `uint16_t` | 0 | 端口 |
+
+可通过构造函数直接填写字段，也可使用[TransportAddress 工厂方法](#2111-TransportAddress-工厂方法)。
+
+#### 1.2.11 传输配置
+
+| `scf::TransportConfig` 名称 | 类型 | 默认值 | 含义 |
+|---|---|---|---|
+| kDefaultConnectTimeoutMs | `static constexpr int32_t` | 5000 | 默认连接超时，单位 ms |
+| nonBlocking | `bool` | `true` | 是否使用非阻塞模式 |
+| sendTimeoutMs | `int32_t` | 0 | 发送超时，0 表示不设置 |
+| recvTimeoutMs | `int32_t` | 0 | 接收超时，0 表示不设置 |
+| connectTimeoutMs | `int32_t` | 5000 | 连接超时 |
+| sendBufferSize | `size_t` | 0 | 发送缓冲区大小，0 表示使用系统默认值 |
+| recvBufferSize | `size_t` | 0 | 接收缓冲区大小，0 表示使用系统默认值 |
+| tcpNoDelay | `bool` | `true` | 是否启用 `TCP_NODELAY` |
 
 ### 1.3 回调函数定义
 
@@ -837,6 +1123,32 @@ typedef int32_t (*SCF_PskFindSessionCb)(
 见[1.4 错误码](#14-错误码)
 
 ### 1.4 错误码
+
+错误码由项目标识、模块标识和模块内编号按位组合。相关宏定义如下：
+
+```c++
+#define SCF_PROJECT_ID 0x75000000
+#define SCF_MOD_MAKE(Mod) (SCF_PROJECT_ID | ((uint32_t)(Mod) << 8UL))
+#define SCF_MOD_COMMON SCF_MOD_MAKE(0x0000)
+#define SCF_MOD_CAL SCF_MOD_MAKE(0x0010)
+#define SCF_SUBMOD_SSL_RETRY SCF_MOD_MAKE(0x0020)
+#define SCF_SUBMOD_SSL SCF_MOD_MAKE(0x0021)
+#define SCF_MOD_CONFIG SCF_MOD_MAKE(0x0011)
+#define SCF_MOD_LOG SCF_MOD_MAKE(0x9000)
+#define SCF_MOD_RBAC SCF_MOD_MAKE(0x0030)
+#define SCF_ERRNO_MAKE(Mod, Errno) ((Mod) | (Errno))
+```
+
+| 名称 | 值 | 含义 |
+|---|---|---|
+| SCF_PROJECT_ID | `0x75000000` | SCF 项目标识 |
+| SCF_MOD_COMMON | `0x75000000` | 通用错误模块 |
+| SCF_MOD_CAL | `0x75001000` | CAL 模块 |
+| SCF_MOD_CONFIG | `0x75001100` | 配置解析模块 |
+| SCF_SUBMOD_SSL_RETRY | `0x75002000` | SSL 可重试错误子模块 |
+| SCF_SUBMOD_SSL | `0x75002100` | SSL 错误子模块 |
+| SCF_MOD_RBAC | `0x75003000` | RBAC 模块 |
+| SCF_MOD_LOG | `0x75900000` | 日志模块 |
 
 | 名称                                      | 值          | 含义                            |
 |-----------------------------------------|------------|-------------------------------|
@@ -1043,7 +1355,7 @@ void。
 ##### 实现方法
 
 ```c++
-const char *GetErrorMessage(int32_t errorCode)
+const char *GetErrorMessage(int32_t errorCode);
 ```
 
 ##### 参数说明
@@ -1998,7 +2310,7 @@ int32_t SCF_SessionSetProtocolVersion(SCF_Session *sess, const char *version);
 ##### 实现方法
 
 ```c++
-int32_t SCF_SessionGetProtocolVersion(SCF_Session *sess, char **version, size_t &versionLen)
+int32_t SCF_SessionGetProtocolVersion(SCF_Session *sess, char **version, size_t &versionLen);
 ```
 
 ##### 参数说明
@@ -2721,3 +3033,332 @@ int32_t SCF_CheckResourcePermission(SCF_PolicyCtx *ctx, const void *localCert,
 拒绝规则或 slave 请求跨节点资源时返回 `SCF_ERRNO_RBAC_DENIED`；无法解析本端节点角色时返回
 `SCF_ERRNO_RBAC_ROLE_UNKNOWN`；证书缺少 NodeId 扩展时返回 `SCF_ERRNO_CERT_NODE_ID_ABSENT`；证书扩展
 解析失败、输入参数非法或框架未初始化时返回相应错误码。
+
+### 2.9 安全连接接口
+
+本节接口声明于 `scf_connection.h`，位于 `scf` 命名空间，仅供 C++ 调用。`SCFConnection` 封装策略上下文、
+TLS 对象、传输对象和密码引擎的生命周期。
+
+#### 2.9.1 SCFConnection
+
+##### 创建与释放
+
+```c++
+class SCFConnection {
+public:
+    static SCFConnection *Create(const SCFConnectionConfig &config);
+    virtual ~SCFConnection() = default;
+
+protected:
+    SCFConnection() = default;
+};
+```
+
+当前 `Create` 实现直接使用 `new` 返回连接实例，内存分配失败时可能抛出 `std::bad_alloc`，不会主动返回
+`nullptr`。返回对象由调用方持有，应使用 `delete` 释放；析构时自动释放连接相关资源。配置字段和默认值见
+[1.2.6 安全连接配置](#126-安全连接配置)。
+
+##### 连接生命周期
+
+```c++
+virtual int32_t Connect(const std::string &host, uint16_t port) = 0;
+virtual int32_t Listen(const std::string &host, uint16_t port) = 0;
+virtual SCFConnection *Accept() = 0;
+virtual int32_t HandshakeStep() = 0;
+virtual int32_t Close() = 0;
+```
+
+| 接口 | 说明 |
+|---|---|
+| Connect | 客户端连接目标主机和端口；非阻塞模式下返回后可能需要继续调用 `HandshakeStep` |
+| Listen | 服务端绑定并监听；`host` 为空时监听 `0.0.0.0` |
+| Accept | 接受新连接；非阻塞模式下没有可用连接时返回 `nullptr`；成功返回的对象由调用方 `delete`。子连接可能借用监听连接的密码引擎，因此监听连接必须晚于其所有子连接释放，否则可能产生悬空引用 |
+| HandshakeStep | 推进一次 TLS 握手；完成返回 `SCF_SUCCESS`，等待事件时返回 `SCF_SSL_ERR_WANT_READ` 或 `SCF_SSL_ERR_WANT_WRITE` |
+| Close | 主动关闭安全连接，成功返回 `SCF_SUCCESS` |
+
+##### 数据传输
+
+```c++
+virtual int32_t Read(uint8_t *data, uint32_t len, uint32_t *readLen) = 0;
+virtual int32_t Write(const uint8_t *data, uint32_t len, uint32_t *writeLen) = 0;
+```
+
+`Read` 将实际读取长度写入 `readLen`，`Write` 将实际写入长度写入 `writeLen`。成功返回 `SCF_SUCCESS`；
+非阻塞重试和其他失败返回[错误码](#14-错误码)。
+
+##### 状态查询与高级操作
+
+```c++
+virtual SCF_CONNECTION_STATE GetState() const = 0;
+virtual bool IsConnected() const = 0;
+virtual const char *GetTLSVersion() const = 0;
+virtual uint16_t GetCipherSuite() const = 0;
+virtual void *GetPeerCertificate() = 0;
+virtual void FreePeerCertificate(void *cert) = 0;
+virtual ITransport *GetTransport() const = 0;
+virtual int32_t GetNativeHandle() const = 0;
+virtual int32_t TriggerKeyUpdate() = 0;
+virtual void SetUserData(void *userData) = 0;
+virtual void *GetUserData() const = 0;
+```
+
+| 接口 | 说明 |
+|---|---|
+| GetState | 返回[连接状态](#1122-连接状态) |
+| IsConnected | 返回安全通道是否已建立 |
+| GetTLSVersion | 返回本次协商的 TLS 版本字符串 |
+| GetCipherSuite | 当前实现尚未接入协商结果查询，固定返回 `0` |
+| GetPeerCertificate | 建链成功后获取对端证书；返回的底层证书指针必须交给 `FreePeerCertificate` 释放 |
+| FreePeerCertificate | 释放 `GetPeerCertificate` 返回的证书 |
+| GetTransport | 返回连接持有的底层传输对象，不转移所有权 |
+| GetNativeHandle | 返回用于事件循环的底层原生句柄 |
+| TriggerKeyUpdate | 主动触发 TLS 1.3 KeyUpdate，成功返回 `SCF_SUCCESS` |
+| SetUserData / GetUserData | 设置或读取用户指针；框架不接管该指针指向对象的生命周期 |
+
+#### 2.9.2 安全连接便捷函数
+
+```c++
+SCFConnection *SCF_NewClientConnection(
+    SCF_SECURITY_LEVEL securityLevel,
+    const std::string &caCertPath = "");
+
+SCFConnection *SCF_NewServerConnection(
+    SCF_SECURITY_LEVEL securityLevel,
+    const std::string &certPath,
+    const std::string &keyPath);
+
+SCFConnection *SCF_NewPSKConnection(
+    SCF_SECURITY_LEVEL securityLevel,
+    SCF_ROLE role,
+    const std::string &pskIdentity,
+    const uint8_t *pskKey, size_t pskKeyLen);
+```
+
+| 接口 | 参数与行为 |
+|---|---|
+| SCF_NewClientConnection | 创建客户端连接；`caCertPath` 为空时不校验对端证书 |
+| SCF_NewServerConnection | 使用指定服务端证书和私钥创建服务端连接 |
+| SCF_NewPSKConnection | 创建保存指定角色、PSK 身份和密钥的连接对象；当前实现未注册 PSK 会话回调，不能完成实际 PSK 建链 |
+
+成功时返回由调用方 `delete` 的 `SCFConnection`，失败时返回 `nullptr`。
+
+#### 2.9.3 传输与密码引擎注册
+
+```c++
+bool SCF_RegisterTransportFactory(ITransportFactory *factory);
+void SCF_UnregisterTransportFactory(TransportProtocol protocol);
+bool SCF_RegisterCryptoEngineFactory(ICryptoEngineFactory *factory);
+void SCF_UnregisterCryptoEngineFactory(const std::string &name);
+```
+
+| 接口 | 说明 |
+|---|---|
+| SCF_RegisterTransportFactory | 按协议类型保存自定义传输工厂，成功返回 `true`，空指针返回 `false` |
+| SCF_UnregisterTransportFactory | 按协议类型注销传输工厂 |
+| SCF_RegisterCryptoEngineFactory | 按名称保存自定义密码引擎工厂，成功返回 `true`，空指针返回 `false` |
+| SCF_UnregisterCryptoEngineFactory | 按工厂名称注销密码引擎工厂 |
+
+当前注册表仅保存工厂的原始指针，不释放工厂对象，也不会自动把已注册工厂选入连接配置。调用方必须保证
+注册期间工厂有效；创建连接时仍需将工厂显式赋给 `SCFConnectionConfig::transportFactory` 或
+`SCFConnectionConfig::cryptoEngineFactory`。
+
+### 2.10 密码引擎接口
+
+本节接口声明于 `scf_crypto_engine.h`，位于 `scf` 命名空间。自定义软件引擎、密码卡或 Provider 引擎应实现
+`ICryptoEngine`，并通过工厂注入高层连接。
+
+#### 2.10.1 ICryptoEngine
+
+##### 生命周期与能力
+
+```c++
+virtual ~ICryptoEngine() = default;
+virtual bool Initialize(const CryptoEngineConfig &config) = 0;
+virtual void Finalize() = 0;
+virtual CryptoEngineCapability GetCapability() const = 0;
+virtual bool IsInitialized() const = 0;
+```
+
+`Initialize` 成功返回 `true`；`Finalize` 释放引擎资源。`GetCapability` 返回的字段见
+[1.2.7 密码引擎能力](#127-密码引擎能力)。
+
+##### 密码运算
+
+```c++
+virtual bool EncryptAEAD(
+    SymmetricAlgorithm algo,
+    const uint8_t *key, size_t keyLen,
+    const uint8_t *iv, size_t ivLen,
+    const uint8_t *plaintext, size_t plaintextLen,
+    const uint8_t *aad, size_t aadLen,
+    uint8_t *ciphertext, size_t *ciphertextLen,
+    uint8_t *tag, size_t tagLen) = 0;
+
+virtual bool DecryptAEAD(
+    SymmetricAlgorithm algo,
+    const uint8_t *key, size_t keyLen,
+    const uint8_t *iv, size_t ivLen,
+    const uint8_t *ciphertext, size_t ciphertextLen,
+    const uint8_t *aad, size_t aadLen,
+    const uint8_t *tag, size_t tagLen,
+    uint8_t *plaintext, size_t *plaintextLen) = 0;
+
+virtual bool ECDHKeyAgreement(
+    AsymmetricAlgorithm algo,
+    const uint8_t *peerPublicKey, size_t peerPublicKeyLen,
+    uint8_t *sharedSecret, size_t *sharedSecretLen) = 0;
+
+virtual bool Sign(
+    AsymmetricAlgorithm algo, const CryptoKeyHandle &key,
+    const uint8_t *digest, size_t digestLen,
+    uint8_t *signature, size_t *sigLen) = 0;
+
+virtual bool Verify(
+    AsymmetricAlgorithm algo, const CryptoKeyHandle &key,
+    const uint8_t *digest, size_t digestLen,
+    const uint8_t *signature, size_t sigLen) = 0;
+
+virtual bool Hash(
+    HashAlgorithm algo, const uint8_t *data, size_t dataLen,
+    uint8_t *digest, size_t *digestLen) = 0;
+
+virtual bool HMAC(
+    HashAlgorithm algo, const uint8_t *key, size_t keyLen,
+    const uint8_t *data, size_t dataLen,
+    uint8_t *mac, size_t *macLen) = 0;
+
+virtual bool HKDFExtract(
+    HashAlgorithm algo, const uint8_t *salt, size_t saltLen,
+    const uint8_t *ikm, size_t ikmLen,
+    uint8_t *prk, size_t *prkLen) = 0;
+
+virtual bool HKDFExpand(
+    HashAlgorithm algo, const uint8_t *prk, size_t prkLen,
+    const uint8_t *info, size_t infoLen,
+    uint8_t *okm, size_t okmLen) = 0;
+
+virtual bool RandomBytes(uint8_t *buffer, size_t len) = 0;
+```
+
+所有运算成功时返回 `true`，失败时返回 `false`。各输出长度通过相应长度指针返回；`aad` 可为 `nullptr`。
+`DecryptAEAD` 仅在认证通过且解密成功时返回 `true`。
+
+##### 密钥与 Provider 管理
+
+```c++
+virtual bool ImportKey(
+    uint64_t keyId, const uint8_t *keyData, size_t keyDataLen,
+    CryptoKeyHandle &handle) = 0;
+virtual bool DestroyKey(const CryptoKeyHandle &handle) = 0;
+virtual void *GetProviderContext() const = 0;
+virtual bool IsHardwareAccelerated() const = 0;
+virtual const char *GetAcceleratedAlgorithms() const = 0;
+```
+
+`ImportKey` 导入密钥；`keyData` 为 `nullptr` 时由硬件内部生成，并通过 `handle` 返回引用。
+`GetProviderContext` 对 OpenSSL 3.0+ Provider 引擎返回 `OSSL_LIB_CTX *`，不使用 Provider 时返回 `nullptr`。
+`GetAcceleratedAlgorithms` 返回用于日志展示的算法列表字符串。
+
+#### 2.10.2 DefaultSoftwareCryptoEngine
+
+`DefaultSoftwareCryptoEngine` 是基于 OpenSSL 的软件实现，但当前仅部分实现
+[ICryptoEngine](#2101-ICryptoEngine)。
+
+```c++
+DefaultSoftwareCryptoEngine();
+~DefaultSoftwareCryptoEngine() override;
+```
+
+它不是连接的自动回退引擎，`IsHardwareAccelerated()` 返回 `false`。当前 `Sign` 和 `Verify` 固定返回 `false`；
+`ImportKey` 不解析或保存 `keyData`，仅填写句柄并返回 `true`；`DestroyKey` 不执行实际销毁操作。能力信息虽然列出
+ECDSA，但当前不能通过该实现完成签名或验签，因此不应将其用于签名、验签或密钥托管。
+
+#### 2.10.3 密码引擎工厂
+
+```c++
+class ICryptoEngineFactory {
+public:
+    virtual ~ICryptoEngineFactory() = default;
+    virtual ICryptoEngine *Create() = 0;
+    virtual const char *GetName() const = 0;
+};
+
+class DefaultSoftwareCryptoEngineFactory : public ICryptoEngineFactory {
+public:
+    ICryptoEngine *Create() override;
+    const char *GetName() const override;
+};
+```
+
+`Create` 返回新的引擎实例，`GetName` 返回工厂名称。自定义工厂可通过
+[SCF_RegisterCryptoEngineFactory](#293-传输与密码引擎注册)注册；`DefaultSoftwareCryptoEngineFactory` 创建
+默认软件引擎。
+
+### 2.11 传输接口
+
+本节接口声明于 `scf_transport.h`，位于 `scf` 命名空间。自定义 Socket、URMA 或其他传输后端应实现
+`ITransport`，并通过 `ITransportFactory` 创建实例。
+
+#### 2.11.1 TransportAddress 工厂方法
+
+```c++
+struct TransportAddress {
+    static TransportAddress IPv4(const std::string &host, uint16_t port);
+    static TransportAddress URMAAddr(const std::string &addr, uint16_t port = 0);
+};
+```
+
+`IPv4` 返回类型为 `TransportAddressType::IPv4` 的地址；`URMAAddr` 返回类型为
+`TransportAddressType::URMA` 的地址，端口默认值为 0。返回结构字段见
+[1.2.10 传输端点地址](#1210-传输端点地址)。
+
+#### 2.11.2 ITransport
+
+```c++
+virtual ~ITransport() = default;
+virtual TransportProtocol GetProtocol() const = 0;
+virtual TransportResult Connect(
+    const TransportAddress &addr, const TransportConfig &config) = 0;
+virtual TransportResult Bind(const TransportAddress &addr, int32_t backlog = 128) = 0;
+virtual ITransport *Accept() = 0;
+virtual TransportResult Send(const uint8_t *data, size_t len, size_t *sentLen) = 0;
+virtual TransportResult Recv(uint8_t *data, size_t len, size_t *recvLen) = 0;
+virtual void Close() = 0;
+virtual int32_t GetNativeHandle() const = 0;
+virtual bool IsConnected() const = 0;
+virtual TransportAddress GetLocalAddress() const = 0;
+virtual TransportAddress GetRemoteAddress() const = 0;
+virtual TransportResult SetConfig(const TransportConfig &config) = 0;
+virtual ITransport *Clone() const = 0;
+```
+
+| 接口 | 说明 |
+|---|---|
+| GetProtocol | 返回后端的[传输协议类型](#1129-传输协议类型) |
+| Connect | 客户端按地址和配置发起连接 |
+| Bind | 服务端绑定并监听，等待队列长度默认 128 |
+| Accept | 接受连接并返回新的传输对象；调用方负责释放返回对象 |
+| Send / Recv | 发送或接收数据，并通过 `sentLen` / `recvLen` 返回实际长度 |
+| Close | 关闭传输连接 |
+| GetNativeHandle | 返回平台相关原生句柄；不支持时返回 -1 |
+| IsConnected | 返回连接是否有效 |
+| GetLocalAddress / GetRemoteAddress | 返回本地或对端地址 |
+| SetConfig | 更新传输配置 |
+| Clone | 克隆传输对象，供 `Accept` 场景使用；调用方负责释放返回对象 |
+
+除指针或布尔返回接口外，操作结果见[1.1.27 传输操作结果](#1127-传输操作结果)。
+
+#### 2.11.3 ITransportFactory
+
+```c++
+class ITransportFactory {
+public:
+    virtual ~ITransportFactory() = default;
+    virtual ITransport *Create() = 0;
+    virtual TransportProtocol GetProtocol() const = 0;
+    virtual const char *GetName() const = 0;
+};
+```
+
+`Create` 返回新的传输对象，`GetProtocol` 返回工厂支持的协议类型，`GetName` 返回工厂名称。
+自定义工厂可通过[SCF_RegisterTransportFactory](#293-传输与密码引擎注册)注册。
