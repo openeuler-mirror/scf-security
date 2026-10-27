@@ -2,9 +2,8 @@
 
 if(NOT DOWNLOAD_DEPENDENCY)
     # Use system-installed rapidjson from RPM
-    find_package(RapidJSON CONFIG REQUIRED)
     add_library(librapidjson INTERFACE)
-    target_link_libraries(librapidjson INTERFACE RapidJSON)
+    target_include_directories(librapidjson INTERFACE /usr/include)
     add_library(Dependency::rapidjson ALIAS librapidjson)
 else()
     ExternalProject_Add(rapidjson
