@@ -94,10 +94,6 @@ message("CMAKE_DEPENDENCY_INSTALL_PREFIX:  " ${CMAKE_DEPENDENCY_INSTALL_PREFIX})
 message("CMAKE_DEPENDENCY_INCLUDEDIR:  " ${CMAKE_DEPENDENCY_INCLUDEDIR})
 message("CMAKE_DEPENDENCY_LIBDIR:  " ${CMAKE_DEPENDENCY_LIBDIR})
 
-# We use FetchContent to handle src-only dependencies
-include(FetchContent)
-set(FETCHCONTENT_BASE_DIR ${CMAKE_DEPENDENCY_INSTALL_PREFIX}/src)
-
 # External dependencies
 include(ExternalProject)
 

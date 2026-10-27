@@ -22,6 +22,7 @@ Secure Communication Framework (SCF) provides the secure communication framework
    sudo yum install -y cmake
    sudo yum install -y gcc
    sudo yum install -y gcc-c++
+   sudo yum install -y gtest-devel
    sudo yum install -y libboundscheck
    ```
 

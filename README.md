@@ -20,6 +20,7 @@ sudo yum install -y make
 sudo yum install -y cmake
 sudo yum install -y gcc
 sudo yum install -y gcc-c++
+sudo yum install -y gtest-devel
 sudo yum install -y libboundscheck
 sudo yum install -y rapidjson-devel
 sudo yum install -y libasan
